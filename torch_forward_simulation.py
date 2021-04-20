@@ -22,7 +22,7 @@ def torch_state_length_sampler(state, entrants):
     return torch.squeeze(1+samples) # Time must be at least 1.
 
 
-def torch_forward_time(np_state, get_state_lengths, beta_household, np_probability_matrix, np_importation_probability, duration=0, secondary_infections=True): # CLOSES AROUND DELTA_T
+def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=0, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  
     #start = time.time()
 
@@ -37,9 +37,9 @@ def torch_forward_time(np_state, get_state_lengths, beta_household, np_probabili
         state_lengths = torch.zeros_like(state, dtype=torch.double)
         for s in range(SUSCEPTIBLE_STATE, REMOVED_STATE):
             if state_lengths[state==s].nelement() > 0:
-                state_lengths[state==s] = get_state_lengths(s, state[state == s]) ## how long spent in each state; already on GPU
+                state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on GPU
     else:
-        np_state_lengths = get_state_lengths(np_state) ## how long spent in each state
+        np_state_lengths = state_length_sampler(np_state) ## how long spent in each state
         state_lengths = torch.from_numpy(np_state_lengths).to(GPU)
 
     importation_probability = torch.from_numpy(np_importation_probability).to(GPU)
@@ -146,7 +146,7 @@ def torch_forward_time(np_state, get_state_lengths, beta_household, np_probabili
                     if entrants.nelement() > 0:
                         #print("s", s)
                         assert s>SUSCEPTIBLE_STATE
-                        entrant_lengths = torch_gamma_lengths(s, entrants)
+                        entrant_lengths = state_length_sampler(s, entrants)
                         state_lengths[torch.logical_and(new_state != state, new_state==s)] = entrant_lengths
             else:
                 states_that_changed = new_state[new_state != state]
