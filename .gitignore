@@ -2,6 +2,9 @@
 .#*
 *~
 
+# Private git token
+git_token.py
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
