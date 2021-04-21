@@ -1,8 +1,8 @@
 import pandas as pd
-
-from InfectionModel import Model, Population
+import numpy as np
+import population
 import utilities
-from constants import *
+import constants
 
 class Vaccine:
     def __init__(self, vax_sus=1.0, vax_inf=1.0):
@@ -118,8 +118,8 @@ class VaccineStudy:
         self.n_households = int(n_per_arm/len(sizes))
 
         # gamma distributed state lengths with shape k and period length T
-        T = mean_vec[INFECTIOUS_STATE]
-        k = shape_vec[INFECTIOUS_STATE]
+        T = constants.mean_vec[constants.INFECTIOUS_STATE]
+        k = constants.shape_vec[constants.INFECTIOUS_STATE]
         self.household_beta = (k/T) * ((1/(1-hsar)**(1/k))-1)
 
         if self.et_method == 'hsarv':
@@ -141,10 +141,10 @@ class VaccineStudy:
 
         v_name = "{0} model es {1} {2} {3} intra beta = {4}".format(name, es, self.et_method, self.et, self.household_beta)
         c_name = "control model with intra beta = {0}".format(self.household_beta)
-        self.vax_m = Model(v_name, vaccine=vaccine, vaccination_method=vaccination_method, household_beta=self.household_beta, initial_seeding=utilities.seed_zero, importation_rate=importation_rate, duration=duration)
-        self.control_m = Model(c_name, vaccine=placebo, vaccination_method=vaccination_method, initial_seeding=utilities.seed_zero, household_beta=self.household_beta, importation_rate=importation_rate, duration=duration)
+        self.vax_m = population.Model(v_name, vaccine=vaccine, vaccination_method=vaccination_method, household_beta=self.household_beta, initial_seeding=utilities.seed_zero, importation_rate=importation_rate, duration=duration)
+        self.control_m = population.Model(c_name, vaccine=placebo, vaccination_method=vaccination_method, initial_seeding=utilities.seed_zero, household_beta=self.household_beta, importation_rate=importation_rate, duration=duration)
 
-        dummy_pop = Population(self.vax_m, self.household_sizes)
+        dummy_pop = population.Population(self.vax_m, self.household_sizes)
         self.r0 = dummy_pop.r0_from_mean_length_no_traits(self.household_beta)
 
     def __repr__(self):

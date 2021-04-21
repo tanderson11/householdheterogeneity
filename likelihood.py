@@ -1,3 +1,5 @@
+import numpy as np
+
 def log_likelihood(grouping, observed, comparison):
     frequency_total = comparison["model"].count()
     frequencies_grouped=comparison.groupby(grouping)

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import utilities
-from constants import *
+import constants
 
 from settings import GPU
 if GPU:
@@ -130,7 +130,7 @@ class Population:
         return hsar_df
 
     def r0_from_mean_length_no_traits(self, household_beta):
-        r0s = [household_beta * (p.size - 1) * numpy_mean_vec[INFECTIOUS_STATE] for p in self.subpops] # simplest approximation
+        r0s = [household_beta * (p.size - 1) * constants.numpy_mean_vec[constants.INFECTIOUS_STATE] for p in self.subpops] # simplest approximation
         r0 = pd.DataFrame({"size":[p.size for p in self.subpops],"r0":r0s})
         return r0
 
@@ -172,7 +172,7 @@ class SubPopulation:
             self.infectiousness *= vax_inf_vector
             #vaccination_pmat = (vax_sus_vector @ vax_inf_vector) # no need to multiply by adjmat, because it's already multiplied against prob_mat
             #print(vaccination_pmat)
-            #
+
             #self.probability_mat = self.probability_mat * vaccination_pmat # element-wise product to combine the parameters defined by vaccination and those defined otherwise
         
         self.probability_mat = (self.susceptibility @ self.infectiousness) * adjmat
@@ -212,23 +212,23 @@ class SubPopulation:
             print("Seeding by susceptibility")
             one_infection_state =  seed_one_by_susceptibility(self.size, self.count, self.susceptibility)
 
-        assert SUSCEPTIBLE_STATE==0 # trying to set the state correctly but using an idiom that only makes sense if SUS_STATE==0
-        one_infection_state = ((INFECTIOUS_STATE / EXPOSED_STATE) * one_infection_state).astype('int64')
+        assert constants.SUSCEPTIBLE_STATE==0 # trying to set the state correctly but using an idiom that only makes sense if SUS_STATE==0
+        one_infection_state = ((constants.INFECTIOUS_STATE / constants.EXPOSED_STATE) * one_infection_state).astype('int64')
         #print("Random state", one_infection_state)
         state_lengths = self.model.state_length_dist(one_infection_state)
 
         #print("state lengths", state_lengths)
 
-        state_lengths[one_infection_state == SUSCEPTIBLE_STATE] = np.inf
-        state_lengths[one_infection_state == REMOVED_STATE] = np.inf
+        state_lengths[one_infection_state == constants.SUSCEPTIBLE_STATE] = np.inf
+        state_lengths[one_infection_state == constants.REMOVED_STATE] = np.inf
 
         #print("infections", one_infection_state == INFECTIOUS_STATE)
-        times = state_lengths[one_infection_state == INFECTIOUS_STATE]
+        times = state_lengths[one_infection_state == constants.INFECTIOUS_STATE]
         if not silent:
             print("times", times)
 
-        sus_mask = (one_infection_state == SUSCEPTIBLE_STATE)
-        inf_mask = (one_infection_state == INFECTIOUS_STATE)
+        sus_mask = (one_infection_state == constants.SUSCEPTIBLE_STATE)
+        inf_mask = (one_infection_state == constants.INFECTIOUS_STATE)
         probabilities = p_mat * sus_mask * inf_mask.transpose(0, 2, 1) # transposing to take what amounts to an outer product in each household
         if not silent:
             print("probability", probabilities)
@@ -243,10 +243,10 @@ class SubPopulation:
         daily_probabilities = (household_beta / self.size) * self.probability_mat
         #print(daily_probabilities, daily_probabilities.shape)
         if not length_dist:
-            time = self.model.state_length_dist((np.ones((self.size, self.count)) * INFECTIOUS_STATE).astype('int32')) # sample an infection length for each individual to mitigate variance
+            time = self.model.state_length_dist((np.ones((self.size, self.count)) * constants.INFECTIOUS_STATE).astype('int32')) # sample an infection length for each individual to mitigate variance
                 
         else:     
-            time = length_dist((np.ones(self.size) * INFECTIOUS_STATE).astype('int32'))
+            time = length_dist((np.ones(self.size) * constants.INFECTIOUS_STATE).astype('int32'))
         print(daily_probabilities.shape)
         #print(np.average(time, axis=1), delta_t, np.sum(daily_probabilities, axis=(1,2)))
         return np.average(time, axis=0) * delta_t * np.sum(daily_probabilities, axis=(1,2))
