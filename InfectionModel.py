@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
 import utilities
-
-
+from constants import *
 
 from settings import GPU
 if GPU:
@@ -130,7 +129,12 @@ class Population:
         hsar_df.index.name = "sample"
         return hsar_df
 
-    def calculate_r0(self, household_beta):
+    def r0_from_mean_length_no_traits(self, household_beta):
+        r0s = [household_beta * (p.size - 1) * numpy_mean_vec[INFECTIOUS_STATE] for p in self.subpops] # simplest approximation
+        r0 = pd.DataFrame({"size":[p.size for p in self.subpops],"r0":r0s})
+        return r0
+
+    def sample_r0(self, household_beta, samples):
         for p in self.subpops:
             r0 = p.sample_r0(household_beta)
             #print("R0", r0, r0.shape)
@@ -231,7 +235,6 @@ class SubPopulation:
             print("summed probs", np.sum(probabilities, axis=(1,2)))
             print("probability * time", np.sum(probabilities, axis=(1,2)) * times)
         return (np.sum(probabilities, axis=(1,2)) * times)
-
 
     def sample_r0(self, household_beta, length_dist=False): # closed around delta_t
         # assumes infection is introduced uniformly at random among household members

@@ -20,9 +20,11 @@ class VaccineStudy:
     All the attributes passed at object creation. Run `print(VaccineStudy.__init__.__doc__)` for more information. Additionally:
 
     household_beta : float
-        the real probability per contact per day of transmission between individuals in household
+        the real probability per contact per day of transmission between individuals in a household
     household_sizes : dict
-        a dictionary containing the sizes of households in each arm of the study, and the number of households of that size
+        a dictionary whose keys are the sizes of households in each arm of the study and whose values are the number of households of that size
+    r0 : DataFrame
+        a table of r0s calculated relative to unvacccinated households at each size
     vax_sus : float
         the real parameter that defines the susceptibility of vaccinated individuals (0.0 = 0% chance to be infected, 0.1=10% chance relative to unvaccinated)
     vax_inf : float
@@ -41,8 +43,8 @@ class VaccineStudy:
     
     Methods
     -------
-    run_trials(trials : int):
-        Conducts the study some number of times and stores the results in tables.
+    run_trials(trials, arms="both"):
+        Conducts the study a number of times equal to trials. Optional argument arms can be used to restrict simulation to relevant arms ("vax" or "control")
 
         returns : DataFrame, DataFrame
             the results in two pandas DataFrame, vax_df and control_df
@@ -82,8 +84,9 @@ class VaccineStudy:
             the desired average (over the household sizes specified) household secondary attack rate
         es : float
             the true parameter reduction in a vaccinated individual's susceptibility
-        hsarv : float
-            the hsar calculated relative to vaccinated individuals
+        (et_method, et) : (string, float)
+            either a tuple of the form ('hsarv', float) to express the hsar calculated relative to vaccinated individuals
+            or of the form ('et', float) to express the relative infectivity reduction among vaccinated individuals
         duration : int
             the duration of the experiment in days
         importation_rate : float
@@ -135,14 +138,17 @@ class VaccineStudy:
         #self.household_beta = hsar / (DurMildInf * ((sum(sizes) - len(sizes))/ len(sizes)))
 
         self.household_sizes = {x:self.n_households for x in sizes} #{4:n_households, 5:n_households, 6:n_households, 7:n_households, 8:n_households}
-    
-        v_name = "{0} model es {1} {2} {3} intra beta = {4}".format(name, es, self.et, self.et_method, self.household_beta)
+
+        v_name = "{0} model es {1} {2} {3} intra beta = {4}".format(name, es, self.et_method, self.et, self.household_beta)
         c_name = "control model with intra beta = {0}".format(self.household_beta)
         self.vax_m = Model(v_name, vaccine=vaccine, vaccination_method=vaccination_method, household_beta=self.household_beta, initial_seeding=utilities.seed_zero, importation_rate=importation_rate, duration=duration)
         self.control_m = Model(c_name, vaccine=placebo, vaccination_method=vaccination_method, initial_seeding=utilities.seed_zero, household_beta=self.household_beta, importation_rate=importation_rate, duration=duration)
-    
+
+        dummy_pop = Population(self.vax_m, self.household_sizes)
+        self.r0 = dummy_pop.r0_from_mean_length_no_traits(self.household_beta)
+
     def __repr__(self):
-        self_str = "Vaccine study named {0} with:\n\tn_per_arm        = {1}\n\thousehold sizes  = {2}\n\tes, {10}        = {3}, {4}\n\tvax_sus, vax_inf   = {5}, {6}\n\tduration         = {7}\n\timportation rate = {8}\n\thousehold beta   = {9}".format(self.name, self.n_per_arm, self.household_sizes, self.es, self.et, self.vaccine.vax_sus, self.vaccine.vax_inf, self.duration, self.importation_rate, self.household_beta, self.et_method)
+        self_str = "Vaccine study named {0} with:\n\tn_per_arm        = {1}\n\thousehold sizes  = {2}\n\tes, {3}        = {4:.3f}, {5:.3f}\n\tvax_sus, vax_inf   = {6:.3f}, {7:.3f}\n\tduration         = {8}\n\timportation rate = {9:.3f}\n\thousehold beta   = {10:.3f}\n\tmin r0, max r0   = {11:.3f}, {12:.3f}".format(self.name, self.n_per_arm, self.household_sizes, self.et_method, self.es, self.et, self.vaccine.vax_sus, self.vaccine.vax_inf, self.duration, self.importation_rate, self.household_beta, self.r0["r0"].min(), self.r0["r0"].max())
         return self_str
     
     def run_trials(self, trials, arms='both'):
@@ -251,7 +257,6 @@ class VaccineStudy:
         p.name = "fisher p value"
 
         return pd.concat([ve, p], axis=1)
-
 
 ### Vaccination utility methods
 def vaccinate_one(shape):
