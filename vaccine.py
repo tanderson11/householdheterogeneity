@@ -68,7 +68,7 @@ class VaccineStudy:
             a labeled series of effects indexed by the trials (number of times a full study was simulated)
 
     """
-    def __init__(self, name, n_per_arm, sizes, hsar, es, et, duration, importation_rate, vaccination_method):
+    def __init__(self, name, n_per_arm, sizes, hsar, es, et, duration, importation_probability_over_study, vaccination_method, seeding=utilities.seed_zero):
         """
         Creates a VaccineStudy, which represents a two-armed study with a group of households receiving the vaccine and a group receiving the placebo.
 
@@ -108,14 +108,19 @@ class VaccineStudy:
             self.et = et[0]
         elif self.et_method == 'et':
             self.et = et[0]
+
+        self.hsar = hsar
         
         self.sizes = sizes
         self.n_per_arm = n_per_arm
         self.duration = duration
-        self.importation_rate = importation_rate
+        self.importation_probability_over_study = importation_probability_over_study
+        self.importation_rate = 1-(1-importation_probability_over_study)**(1/duration) # converting risk over study period to daily risk
         self.vaccination_method = vaccination_method
         
         self.n_households = int(n_per_arm/len(sizes))
+
+        self.seeding=seeding
 
         # gamma distributed state lengths with shape k and period length T
         T = constants.mean_vec[constants.INFECTIOUS_STATE]
@@ -141,14 +146,32 @@ class VaccineStudy:
 
         v_name = "{0} model es {1} {2} {3} intra beta = {4}".format(name, es, self.et_method, self.et, self.household_beta)
         c_name = "control model with intra beta = {0}".format(self.household_beta)
-        self.vax_m = population.Model(v_name, vaccine=vaccine, vaccination_method=vaccination_method, household_beta=self.household_beta, initial_seeding=utilities.seed_zero, importation_rate=importation_rate, duration=duration)
-        self.control_m = population.Model(c_name, vaccine=placebo, vaccination_method=vaccination_method, initial_seeding=utilities.seed_zero, household_beta=self.household_beta, importation_rate=importation_rate, duration=duration)
+        self.vax_m = population.Model(v_name, vaccine=vaccine, vaccination_method=vaccination_method, household_beta=self.household_beta, initial_seeding=seeding, importation_rate=self.importation_rate, duration=duration)
+        self.control_m = population.Model(c_name, vaccine=placebo, vaccination_method=vaccination_method, initial_seeding=utilities.seed_zero, household_beta=self.household_beta, importation_rate=self.importation_rate, duration=duration)
 
         dummy_pop = population.Population(self.vax_m, self.household_sizes)
         self.r0 = dummy_pop.r0_from_mean_length_no_traits(self.household_beta)
 
     def __repr__(self):
-        self_str = "Vaccine study named {0} with:\n\tn_per_arm        = {1}\n\thousehold sizes  = {2}\n\tes, {3}        = {4:.3f}, {5:.3f}\n\tvax_sus, vax_inf   = {6:.3f}, {7:.3f}\n\tduration         = {8}\n\timportation rate = {9:.3f}\n\thousehold beta   = {10:.3f}\n\tmin r0, max r0   = {11:.3f}, {12:.3f}".format(self.name, self.n_per_arm, self.household_sizes, self.et_method, self.es, self.et, self.vaccine.vax_sus, self.vaccine.vax_inf, self.duration, self.importation_rate, self.household_beta, self.r0["r0"].min(), self.r0["r0"].max())
+        labels = ["n_per_arm", "household sizes", "es, {0}".format(self.et_method), "vax_sus, vax_inf", "seeding", "duration", "net /person import prob", "importation rate", "hsar", "household_beta", "min r0, max r0"]
+        fields = [self.n_per_arm, self.household_sizes, "{0:.3f}, {1:.3f}".format(self.es,self.et), "{0:.3f}, {1:.3f}".format(self.vaccine.vax_sus,self.vaccine.vax_inf), self.seeding, self.duration, "{0:.3f}".format(self.importation_probability_over_study), "{0:.3f}".format(self.importation_rate), "{0:.3f}".format(self.hsar), "{0:.3f}".format(self.household_beta), "{0:.3f}, {1:.3f}".format(self.r0["r0"].min(), self.r0["r0"].max())]
+        formats = []
+        self_str = "Vaccine study named {0} with:\n".format(self.name)
+        for label,field in zip(labels, fields):
+            self_str += "\t{0:24} = {1}\n".format(label, field) 
+
+        #self_str = """Vaccine study named {1} with:
+        #\tn_per_arm {0:>18} {2}
+        #\thousehold sizes {0:>18} {3}
+        #\tes, {4} {0:>18} {5:.3f}, {6:.3f}
+        #\tvax_sus, vax_inf {0:>18} {7:.3f}, {8:.3f}
+        #\tseeding {0:>18} {9}
+        #\tduration {0:>18} {10}
+        #\tnet /person import prob {0:>18} {11}
+        #\timportation rate {0:>18} {12:.3f}
+        #\thsar {0:>18} {13:.3f}
+        #\thousehold beta {0:>18} {14:.3f}
+        #\tmin r0, max r0 {0:>18} {15:.3f}, {16:.3f}""".format("=", self.name, self.n_per_arm, self.household_sizes, self.et_method, self.es, self.et, self.vaccine.vax_sus, self.vaccine.vax_inf, self.seeding, self.duration, self.importation_probability_over_study, self.importation_rate, self.hsar, self.household_beta, self.r0["r0"].min(), self.r0["r0"].max())
         return self_str
     
     def run_trials(self, trials, arms='both'):
