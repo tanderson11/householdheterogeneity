@@ -115,20 +115,17 @@ class VaccineStudy:
         self.n_per_arm = n_per_arm
         self.duration = duration
         self.importation_probability_over_study = importation_probability_over_study
-        self.importation_rate = 1-(1-importation_probability_over_study)**(1/duration) # converting risk over study period to daily risk
+        self.importation_rate = utilities.importation_rate_from_cumulative_prob(importation_probability_over_study, duration)
         self.vaccination_method = vaccination_method
         
         self.n_households = int(n_per_arm/len(sizes))
 
         self.seeding=seeding
 
-        # gamma distributed state lengths with shape k and period length T
-        T = constants.mean_vec[constants.INFECTIOUS_STATE]
-        k = constants.shape_vec[constants.INFECTIOUS_STATE]
-        self.household_beta = (k/T) * ((1/(1-hsar)**(1/k))-1)
+        self.household_beta = utilities.household_beta_from_hsar(hsar)
 
         if self.et_method == 'hsarv':
-            implied_vbeta = (k/T) * ((1/(1-self.hsarv)**(1/k))-1) # the beta required to obtain hsar=hsarv
+            implied_vbeta = utilities.household_beta_from_hsar(self.hsarv) # the beta required to obtain hsar=hsarv calculated relative to vaccinated individuals
             vax_inf = implied_vbeta / self.household_beta # the ratio of the vbeta and beta gives the infectiousness of vaccinated individuals
         elif self.et_method == 'et':
             vax_inf = 1-self.et
@@ -138,11 +135,7 @@ class VaccineStudy:
         self.vaccine=vaccine
         placebo = Vaccine(vax_sus=1.0, vax_inf=1.0)
 
-        # this is incorrect for gamma distributed state lengths. 
-        # what we actually want: what's the probability you infect one other contact before you recover
-        #self.household_beta = hsar / (DurMildInf * ((sum(sizes) - len(sizes))/ len(sizes)))
-
-        self.household_sizes = {x:self.n_households for x in sizes} #{4:n_households, 5:n_households, 6:n_households, 7:n_households, 8:n_households}
+        self.household_sizes = {x:self.n_households for x in sizes}
 
         v_name = "{0} model es {1} {2} {3} intra beta = {4}".format(name, es, self.et_method, self.et, self.household_beta)
         c_name = "control model with intra beta = {0}".format(self.household_beta)
@@ -160,18 +153,6 @@ class VaccineStudy:
         for label,field in zip(labels, fields):
             self_str += "\t{0:24} = {1}\n".format(label, field) 
 
-        #self_str = """Vaccine study named {1} with:
-        #\tn_per_arm {0:>18} {2}
-        #\thousehold sizes {0:>18} {3}
-        #\tes, {4} {0:>18} {5:.3f}, {6:.3f}
-        #\tvax_sus, vax_inf {0:>18} {7:.3f}, {8:.3f}
-        #\tseeding {0:>18} {9}
-        #\tduration {0:>18} {10}
-        #\tnet /person import prob {0:>18} {11}
-        #\timportation rate {0:>18} {12:.3f}
-        #\thsar {0:>18} {13:.3f}
-        #\thousehold beta {0:>18} {14:.3f}
-        #\tmin r0, max r0 {0:>18} {15:.3f}, {16:.3f}""".format("=", self.name, self.n_per_arm, self.household_sizes, self.et_method, self.es, self.et, self.vaccine.vax_sus, self.vaccine.vax_inf, self.seeding, self.duration, self.importation_probability_over_study, self.importation_rate, self.hsar, self.household_beta, self.r0["r0"].min(), self.r0["r0"].max())
         return self_str
     
     def run_trials(self, trials, arms='both'):

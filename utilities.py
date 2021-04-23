@@ -1,5 +1,6 @@
 import numpy as np
 import constants
+
 ### Initial infection seeding utility functions
 
 def seed_one_by_susceptibility(size, count, susceptibility):
@@ -33,4 +34,23 @@ def make_bar_chart(df, color_by_column=["model"], axes=False, title_prefix=""):
         except:
             g.plot.bar(figsize=(8,8), ylabel="count", title="{0}Distribution of # of infections in household for households of size {1}".format(title_prefix,k))
         i += 1
+
+### Parametrization utility functions
+
+def importation_rate_from_cumulative_prob(cumulative_probability, duration):
+    return 1-(1-cumulative_probability)**(1/duration) # converting risk over study period to daily risk
+
+def household_beta_from_hsar(hsar):
+    # gamma distributed state lengths with shape k and period length T
+    T = constants.mean_vec[constants.INFECTIOUS_STATE]
+    k = constants.shape_vec[constants.INFECTIOUS_STATE]
+    return (k/T) * ((1/(1-hsar)**(1/k))-1) # household beta as determined by hsar
+
+### Gamma distributed trait utility functions
+
+def wrap_gamma(mean, variance):
+    if variance == 0: # if the variance is 0 simply return the mean
+        return lambda shape: np.ones(shape) * mean
+    else:
+        return lambda shape: np.random.gamma(mean**2/variance, scale=variance/mean, size=shape)
 

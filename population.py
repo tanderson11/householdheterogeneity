@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import utilities
 import constants
+import traits
 
 from settings import GPU
 if GPU:
@@ -15,8 +16,8 @@ else:
 class Model:
     def __init__(self, name,
                  state_length_dist=state_length_sampler,
-                 inf_dist=np.ones,
-                 sus_dist=np.ones,
+                 inf_dist=traits.ConstantTrait(),
+                 sus_dist=traits.ConstantTrait(),
                  initial_seeding=utilities.seed_one_by_susceptibility,
                  household_beta=0,
                  importation_rate=0,
