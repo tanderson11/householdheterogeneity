@@ -14,22 +14,24 @@ class Trait:
         sample_var = np.var(output)
 
         plt.hist(output)
-        plt.title("Histogram of {0}. Sample mean {0:.2f} and sample var {1:.2f}".format(str(self), sample_mean, sample_var))
+        plt.title("Histogram of {0}. Sample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
         plt.xlabel("relative magnitude of trait")
         plt.ylabel("# people")
         plt.show()
 
 class ConstantTrait(Trait):
-    def __init__(self, trait_value=1.0):
+    def __init__(self, name, trait_value=1.0):
+        self.name = name
         self.trait_value = trait_value
         self.distribution = lambda shape: np.ones(shape) * trait_value
 
     def __repr__(self):
-        return "Constant trait with value {0:.2f}".format(self.trait_value)
+        return "Constant trait named {0} with value {1:.2f}".format(self.name, self.trait_value)
 
 class GammaTrait(Trait):
-    def __init__(self, mean, variance):
+    def __init__(self, name, mean, variance):
         # copy fields
+        self.name = name
         self.mean = mean
         self.variance = variance
 
@@ -40,6 +42,6 @@ class GammaTrait(Trait):
             self.distribution = lambda shape: np.random.gamma(mean**2/variance, scale=variance/mean, size=shape)
 
     def __repr__(self):
-        return "Gamma distributed trait with mean {0:.2f} and variance {1:.2f}".format(self.mean, self.variance)
+        return "Gamma distributed trait named {0} with mean {1:.2f} and variance {2:.2f}".format(self.name, self.mean, self.variance)
     
 

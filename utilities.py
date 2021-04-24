@@ -21,7 +21,7 @@ def seed_zero(size, count, susceptibility):
 
 ### Graphing utility functions
 
-def make_bar_chart(df, color_by_column=["model"], axes=False, title_prefix=""):
+def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])
     regrouped = grouped[color_by_column].value_counts().unstack().groupby("size")
     #regrouped.plot.bar(figsize=(8,8), ylabel="count")

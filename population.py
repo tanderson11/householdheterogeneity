@@ -16,8 +16,8 @@ else:
 class Model:
     def __init__(self, name,
                  state_length_dist=state_length_sampler,
-                 inf_dist=traits.ConstantTrait(),
-                 sus_dist=traits.ConstantTrait(),
+                 inf_dist=traits.ConstantTrait("inf"),
+                 sus_dist=traits.ConstantTrait("sus"),
                  initial_seeding=utilities.seed_one_by_susceptibility,
                  household_beta=0,
                  importation_rate=0,
@@ -39,9 +39,16 @@ class Model:
         
         assert (vaccine and vaccination_method) or (not vaccine and not vaccination_method)
         self.vaccine=vaccine
-        self.vaccination_method = vaccination_method
+        self.vaccination_method = vaccination_method   
 
-        
+    def __repr__(self):
+        labels = ["household_beta", "seeding", "duration", "importation rate", "susceptibility", "infectiousness"]
+        fields = ["{0:.3f}".format(self.household_beta), self.seeding, self.duration, "{0:.3f}".format(self.importation_rate), self.sus_dist, self.inf_dist]
+        self_str = "Model named {0} with:\n".format(self.name)
+        for label,field in zip(labels, fields):
+            self_str += "\t{0:18} = {1}\n".format(label, field)  
+
+        return self_str
         
     def run_trials(self, trials, sizes, household_beta=None):
         

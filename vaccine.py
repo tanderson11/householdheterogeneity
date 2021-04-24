@@ -148,7 +148,6 @@ class VaccineStudy:
     def __repr__(self):
         labels = ["n_per_arm", "household sizes", "es, {0}".format(self.et_method), "vax_sus, vax_inf", "seeding", "duration", "net /person import prob", "importation rate", "hsar", "household_beta", "min r0, max r0"]
         fields = [self.n_per_arm, self.household_sizes, "{0:.3f}, {1:.3f}".format(self.es,self.et), "{0:.3f}, {1:.3f}".format(self.vaccine.vax_sus,self.vaccine.vax_inf), self.seeding, self.duration, "{0:.3f}".format(self.importation_probability_over_study), "{0:.3f}".format(self.importation_rate), "{0:.3f}".format(self.hsar), "{0:.3f}".format(self.household_beta), "{0:.3f}, {1:.3f}".format(self.r0["r0"].min(), self.r0["r0"].max())]
-        formats = []
         self_str = "Vaccine study named {0} with:\n".format(self.name)
         for label,field in zip(labels, fields):
             self_str += "\t{0:24} = {1}\n".format(label, field) 
