@@ -6,7 +6,13 @@
 git_token.py
 
 # ipynb files (because we'll use the colab git interface)
-.ipynb
+*.ipynb
+
+# .hdf data files saved by pandas
+*.hdf
+
+# experiments folder
+experiments/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
