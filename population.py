@@ -41,6 +41,9 @@ class Model:
         self.vaccine=vaccine
         self.vaccination_method = vaccination_method   
 
+    #def __str__(self):
+    #    return "{0}-importation{1}-{2}-{3}".format(name, self.seeding.name, self.importation_rate)
+
     def __repr__(self):
         labels = ["household_beta", "seeding", "duration", "importation rate", "susceptibility", "infectiousness"]
         fields = ["{0:.3f}".format(self.household_beta), self.seeding, self.duration, "{0:.3f}".format(self.importation_rate), self.sus_dist, self.inf_dist]
@@ -95,7 +98,17 @@ class Population:
         self.df["model"] = model.name
 
     def simulate_population(self, household_beta=0, duration=0, trials=1):
-        #assert household_beta==0 or self.model.household_beta==0, "Model has a defined household beta, but another household beta was passed to simulate"
+        if not household_beta==0 or self.model.household_beta==0:
+            print("WARNING: Model has a defined household beta, but another household beta was passed to simulate")
+
+        if not duration==0 or self.model.duration==0:
+            print("WARNING: Model has a defined duration, but another duration was passed to simulate")
+        
+        if duration > 0:
+            duration = duration
+        elif self.model.duration > 0:
+            duration = self.model.duration
+
         if household_beta > 0:
             beta = household_beta
         elif self.model.household_beta > 0:

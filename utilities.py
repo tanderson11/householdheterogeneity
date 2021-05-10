@@ -14,10 +14,12 @@ def seed_one_by_susceptibility(size, count, susceptibility):
     
     initial_state[np.arange(count), choices, 0] = constants.EXPOSED_STATE
     return initial_state
+seed_one_by_susceptibility.name="seed_one"
 
 def seed_zero(size, count, susceptibility):
     initial_state = np.zeros((count,size,1), dtype='int32')
     return initial_state
+seed_zero.name="seed_zero"
 
 ### Graphing utility functions
 
