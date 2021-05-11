@@ -3,6 +3,7 @@ import numpy as np
 import utilities
 import constants
 import traits
+import json
 
 from settings import GPU
 if GPU:
@@ -44,6 +45,9 @@ class Model:
     #def __str__(self):
     #    return "{0}-importation{1}-{2}-{3}".format(name, self.seeding.name, self.importation_rate)
 
+    def to_json(self):
+        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+
     def __repr__(self):
         labels = ["household_beta", "seeding", "duration", "importation rate", "susceptibility", "infectiousness"]
         fields = ["{0:.3f}".format(self.household_beta), self.seeding, self.duration, "{0:.3f}".format(self.importation_rate), self.sus_dist, self.inf_dist]
@@ -53,21 +57,12 @@ class Model:
 
         return self_str
         
-    def run_trials(self, trials, sizes, household_beta=None):
+    def run_trials(self, trials, sizes, **kwargs):
         
-        if household_beta:
-            beta = household_beta
-        else:
-            beta = self.household_beta
-        
-        if household_beta and self.household_beta:
-            print("Beta was handed to both the model and the run_trials method. Overriding with the function call value")
-        
-        #size_of_one_trial = sum(sizes.values()) # total # of households
-        expanded_sizes = {size:count*trials for size,count in sizes.items()}
+        expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations and easier implementation
 
         pop = Population(self, expanded_sizes)
-        pop.simulate_population(beta, duration=self.duration)
+        pop.simulate_population(**kwargs)
         
         #trialnums = [i for t in range(trials) for i in range(size_of_one_trial)]
         
@@ -97,12 +92,14 @@ class Population:
                                columns = ["size","model","infections"])
         self.df["model"] = model.name
 
-    def simulate_population(self, household_beta=0, duration=0, trials=1):
-        if not household_beta==0 or self.model.household_beta==0:
+    def simulate_population(self, household_beta=0, duration=0):
+        if not (household_beta==0 or self.model.household_beta==0):
             print("WARNING: Model has a defined household beta, but another household beta was passed to simulate")
+            print(household_beta, self.model.household_beta)
 
-        if not duration==0 or self.model.duration==0:
+        if not (duration==0 or self.model.duration==0):
             print("WARNING: Model has a defined duration, but another duration was passed to simulate")
+            print(duration, self.model.duration)
         
         if duration > 0:
             duration = duration
@@ -116,7 +113,6 @@ class Population:
 
         for p in self.subpops:
             infections = p.simulate_households(beta, duration)
-            #print(infections.shape)
             
             num_infections = np.sum(infections, axis=1)
             self.df.loc[self.df["size"]==p.size, 'infections'] = num_infections
@@ -135,33 +131,10 @@ class Population:
             
         return self.df["infections"]
 
-    def sample_hsar(self, household_beta, ignore_traits=True):
-        hsars = []
-        for p in self.subpops:
-            hsar = p.sample_hsar(household_beta, ignore_traits)
-            hsar = pd.Series(hsar)
-            hsar.name = p.size
-            hsars.append(hsar)
-            
-        hsar_df = pd.concat(hsars, axis=1)
-        #hsar_df.columns=[p.size for p in seelf.subpops]
-        #means.append(np.mean(hsars))
-        #stds.append(np.std(hsars))
-        hsar_df.index.name = "sample"
-        return hsar_df
-
     def r0_from_mean_length_no_traits(self, household_beta):
         r0s = [household_beta * (p.size - 1) * constants.numpy_mean_vec[constants.INFECTIOUS_STATE] for p in self.subpops] # simplest approximation
         r0 = pd.DataFrame({"size":[p.size for p in self.subpops],"r0":r0s})
         return r0
-
-    def sample_r0(self, household_beta, samples):
-        for p in self.subpops:
-            r0 = p.sample_r0(household_beta)
-            #print("R0", r0, r0.shape)
-            self.df.loc[self.df["size"] == p.size, 'r0'] = r0
-            
-        return self.df["r0"]
 
     def likelihoods(self, observed):
         probabilities = use_simulated_data_as_likelihoods(self.df)
@@ -207,7 +180,6 @@ class SubPopulation:
         initial_state = self.model.seeding(self.size, self.count, self.susceptibility)
         if self.model.importation_rate > 0 and initial_state.any():
             print("WARNING: importation rate > 0 while initial infections were seeded. Did you intend this?")
-        #print("INITIAL",initial_state)
         
         infections = forward_time(initial_state, self.model.state_length_dist, household_beta, self.probability_mat, self.model.importation_rate * self.susceptibility, duration)
         

@@ -3,6 +3,7 @@ import numpy as np
 import population
 import utilities
 import constants
+import scipy.stats
 
 class Vaccine:
     def __init__(self, vax_sus=1.0, vax_inf=1.0):

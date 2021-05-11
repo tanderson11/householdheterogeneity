@@ -40,7 +40,11 @@ def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
 ### Parametrization utility functions
 
 def importation_rate_from_cumulative_prob(cumulative_probability, duration):
-    return 1-(1-cumulative_probability)**(1/duration) # converting risk over study period to daily risk
+    if duration==0:
+        print("WARNING: importation rate calculation received duration=0")
+        return 0.
+    else:
+        return 1-(1-cumulative_probability)**(1/duration) # converting risk over study period to daily risk
 
 def household_beta_from_hsar(hsar):
     # gamma distributed state lengths with shape k and period length T
