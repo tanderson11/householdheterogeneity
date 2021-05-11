@@ -2,9 +2,13 @@
 
 ## Getting started
 
-This python package and set of IPython notebooks provide tools for studying the spread of Covid-19 (or another infection) in small, well-mixed subpopulations. For more information about the infection model and supported population structure, see the Infection Model heading. IPython notebooks are a beloved tool for scientific uses of python because they designed to be used interactively and can incorporate written text, LaTeX, and figures.
+This python package and set of IPython notebooks provide tools for studying the spread of Covid-19 (or another infection) in small, well-mixed subpopulations. For more information about the infection model and supported population structure, see the Infection Model heading.
 
-Each notebook uses the underlying python package, but is an endpoint that is not used by other notebooks or parts of the program. If you're only interested in one aspect of this work / problem space (ex. vaccination), then that notebook (ex. VaccineLab.ipynb) will work as a self-contained environment for studying it. These notebooks are designed with Google Colab in mind; Colab provides Google users access to cloud-based IPython instances. Rather than using `git clone` to make a local copy of this package on your computer, instead select the notebook that you want to work with, click the "Open in Colab" button, and follow the notebook's instructions for making a clone of this repository in your Google drive.
+IPython notebooks are a beloved tool for scientific uses of python because they designed to be used interactively and can incorporate written text, LaTeX, and figures.
+
+Each notebook uses the underlying python package, but is an endpoint that is not used by other notebooks or parts of the program. If you're only interested in one aspect of this work / problem space (ex. vaccination), then that notebook (ex. VaccineLab.ipynb) will work as a self-contained environment for studying it. These notebooks are designed with Google Colab in mind; Colab provides Google users access to cloud-based IPython instances.
+
+Rather than using `git clone` to make a local copy of this package on your computer, instead select the notebook that you want to work with, click the "Open in Colab" button, and follow the notebook's instructions for making a clone of this repository in your Google drive.
 
 Notebooks:
 - `VaccineLab.ipynb`: a notebook for developing clinical studies of vaccine effects.
