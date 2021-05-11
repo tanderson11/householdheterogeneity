@@ -23,6 +23,20 @@ seed_zero.name="seed_zero"
 
 ### Graphing utility functions
 
+def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwargs): 
+    grouped = df.groupby(key+grouping)
+
+    # count the occcurences and apply a sort so the shape of the dataframe doesn't change contextually
+    counts = grouped.apply(lambda g: g.value_counts(subset="infections", normalize=True).sort_index())
+
+    
+    # for some reason a change in the dataframes mean that the counts were stacking the infections in this weird way that I don't understand. this fixes it
+    counted_unstacked = counts.T.unstack().unstack(level=list(range(len(key))))
+    # and this was the old way
+    #counted_unstacked = counts.unstack(level=list(range(len(key))))
+
+    counted_unstacked.plot.bar(**kwargs)
+    
 def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])
     regrouped = grouped[color_by_column].value_counts().unstack().groupby("size")

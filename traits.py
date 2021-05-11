@@ -8,20 +8,20 @@ class Trait:
     def __call__(self, shape):
         return self.distribution(shape)
     
-    def plot(self, samples=1000):
-        output = np.array(self(10000))
+    def plot(self, samples=1000, **kwargs):
+        output = np.array(self(samples))
         sample_mean = np.mean(output)
         sample_var = np.var(output)
 
-        plt.hist(output)
-        plt.title("Histogram of {0}. Sample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
+        plt.hist(output, **kwargs)
+        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
         plt.xlabel("relative magnitude of trait")
         plt.ylabel("# people")
-        plt.show()
 
 class ConstantTrait(Trait):
     def __init__(self, name, trait_value=1.0):
         self.name = name
+        self.trait_type="constant"
         self.trait_value = trait_value
         self.distribution = lambda shape: np.ones(shape) * trait_value
 
@@ -34,6 +34,7 @@ class GammaTrait(Trait):
         self.name = name
         self.mean = mean
         self.variance = variance
+        self.trait_type="gamma"
 
         # assign the underlying distribution
         if variance == 0:
