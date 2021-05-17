@@ -200,7 +200,15 @@ class SubPopulation:
             one_infection_state = seed_one_by_susceptibility(self.size, self.count, basic_sus)
         else:
             print("Sampling HSAR while including traits of members of household")
-            p_mat = household_beta * delta_t * self.probability_mat
+            
+            use_accurate_pmat = True
+            if use_accurate_pmat:
+                print("Using no approximation for the probability matrix")
+                p_mat = 1-(1-household_beta)**delta_t * self.probability_mat
+            else:
+                p_mat = household_beta * delta_t * self.probability_mat
+
+            
 
             print("Seeding by susceptibility")
             one_infection_state =  seed_one_by_susceptibility(self.size, self.count, self.susceptibility)

@@ -24,6 +24,7 @@ std_vec=np.array(
       [1., std_LatentPeriod, std_DurMildInf, 1.])
 shape_vec=(mean_vec/std_vec)**2# This will contain shape values for each state
 scale_vec=(std_vec**2)/mean_vec # This will contain scale values for each state
+# beta is given in accordance with the line beta = delta_t/torch_scale_vec[state], so having this fraction makes sense
 
 # some states have an infinite duration 
 inf_waiting_states = [SUSCEPTIBLE_STATE, REMOVED_STATE]

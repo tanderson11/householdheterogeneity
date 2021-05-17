@@ -59,29 +59,44 @@ class InteractiveFigure:
         
         self.comparison_df = pd.read_hdf('comparison_df.hdf')
         self.full_baseline_df = pd.read_hdf('baseline_df.hdf')
-        
 
         with open('keys.json', 'r') as handle:
             self.key1, self.key2 = json.load(handle)
 
         self.baseline_df = self.baseline_at_point(baseline_key1_value, baseline_key2_value, one_trial=True)
-        # self.full_baseline_df[(self.full_baseline_df[self.key1] == baseline_key1_value) & (self.full_baseline_df[self.key2] == baseline_key2_value)]
 
         with open("./default_model.json", 'r') as handle:
             self.baseline_model_dict = json.load(handle) # we load the baseline parameters from a json file
+        print(self.baseline_model_dict)
 
         with open("./baseline_sizes.json", 'r') as handle:
             self.baseline_sizes = json.load(handle) # we load the baseline parameters from a json file
 
-        print(self.baseline_model_dict)
+        # --- Generating a logl df for faster everything ---
+        try:
+            self.full_logl_df = pd.read_hdf('logl_df.hdf')  
+        except FileNotFoundError: # make the logl df if it doesn't exist
+            logl_dfs = []
+            comparison_grouped = self.comparison_df.groupby([self.key1, self.key2])
+
+            for k,baseline_g in self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"]):
+                #comparison_key = k[:2]
+                #print(k, comparison_key, comparison_grouped.keys)
+                #_logl_series = likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_grouped.get_group(comparison_key))
+                
+                _logl_df = self.comparison_df.groupby([self.key1, self.key2]).apply(lambda comparison_g: likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_g))
+                _logl_df = _logl_df.reset_index()
+                _logl_df["baseline " + self.key1], _logl_df["baseline " + self.key2], _logl_df["trialnum"] = k
+                #_logl_df[self.key2] =
+                #_logl_df["trialnum"] = 
+                print(_logl_df)
+                logl_dfs.append(_logl_df)
+
+            self.full_logl_df = pd.concat(logl_dfs)
+            self.full_logl_df.to_hdf("logl_df.hdf", key='full_logl_df', mode='w')
+            print(full_logl_df)
+
         # -- Selecting the location of the baseline point --
-
-        #assert len(self.baseline_df[self.key1].unique())==1, "Expected the baseline df to have one unique value for key1"
-        #baseline_key1_value = self.baseline_df[self.key1].unique()[0]
-
-        #assert len(self.baseline_df[self.key2].unique())==1, "Expected the baseline df to have one unique value for key2"
-        #baseline_key2_value = self.baseline_df[self.key2].unique()[0]
-
         baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
         self.baseline_color = "blue"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
@@ -90,8 +105,6 @@ class InteractiveFigure:
         
         # --
         self.available_colors = ["orange", "red", "green", "violet"]
-
-
 
         self.subplots_shape = subplots_shape
         self.subfigure_types = subfigure_types
@@ -102,12 +115,12 @@ class InteractiveFigure:
         baseline_df = self.full_baseline_df[(self.full_baseline_df[self.key1] == key1_value) & (self.full_baseline_df[self.key2] == key2_value)]
 
         try: # for legacy dfs that don't always include a trial column
-            print(baseline_df["trial"])
+            print(baseline_df["trialnum"])
         except KeyError:
-            baseline_df["trial"] = 0
+            baseline_df["trialnum"] = 0
 
         if one_trial:
-            baseline_df = baseline_df[baseline_df["trial"] == 0] # for concreteness, use only trial 1
+            baseline_df = baseline_df[baseline_df["trialnum"] == 0] # for concreteness, use only trial 1
 
         return baseline_df
 
@@ -129,7 +142,7 @@ class InteractiveFigure:
                 sf = ax.associated_subfigure
                 if isinstance(sf, Heatmap):
                     sf.draw_patches()
-                else:
+                elif not(isinstance(sf, ContourPlot)):
                     sf.draw()
 
         self.fig.canvas.draw()        
@@ -148,7 +161,7 @@ class InteractiveFigure:
             sf = ax.associated_subfigure
             if isinstance(sf, Heatmap):
                 sf.draw_patches()
-            else:
+            elif not(isinstance(sf, ContourPlot)):
                 sf.draw()
         
         return point
@@ -224,7 +237,7 @@ def subfigure_factory(plot_type, ax, interactive):
     
     elif plot_type == 'logl contour plot':
         logl_df = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
-        subfigure = ContourPlot(ax, interactive, logl_df, "ContourPlot")
+        subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels")
 
     elif plot_type == 'average heatmap':
         average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean()).unstack()
@@ -399,7 +412,16 @@ class ContourPlot(Subfigure):
 
         X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
 
-        plt.contourf(X, Y, self.Z)
+        contourf = plt.contourf(X, Y, self.Z)
+
+        cbar = plt.colorbar(contourf)
+        cbar.ax.set_ylabel('logl')
+        # Add the contour line levels to the colorbar
+        #cbar.add_lines(contourf)
+
+        plt.title(self.title)
+        plt.xlabel(self.interactive.key2)
+        plt.ylabel(self.interactive.key1)
 
 class Heatmap(Subfigure):
     def __init__(self, ax, interactive, df, title, scatter_stars=False):
@@ -434,7 +456,7 @@ class Heatmap(Subfigure):
     def draw(self):
         Subfigure.draw(self)
 
-        sns.heatmap(self.df, ax=self.ax, cbar=False, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
+        sns.heatmap(self.df, ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
 
         if self.scatter_stars:
             width = self.df.columns.size
@@ -445,17 +467,19 @@ class Heatmap(Subfigure):
 
             x_mins = []
             y_mins = []
-            for _,baseline_g in scatter_df.groupby("trial"):
+            for _,baseline_g in scatter_df.groupby("trialnum"):
                 _logl_df = self.interactive.comparison_df.groupby([self.interactive.key1, self.interactive.key2]).apply(lambda comparison_g: likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_g))
 
-                idx = _logl_df.reset_index()[0].argmax() # idiom for finding position of largest value
+                idx = _logl_df.reset_index()[0].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
                 x_min = idx % width + 0.5
                 y_min = idx // width + 0.5
 
                 x_mins.append(x_min)
                 y_mins.append(y_min)
             
-            self.ax.scatter(x_min, y_min, marker='*', s=100, color='blue') 
+            #import pdb; pdb.set_trace()
+
+            self.ax.scatter(x_mins, y_mins, marker='*', s=100, color='blue') 
 
         plt.title(self.title)
 
@@ -482,6 +506,8 @@ figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait h
 
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-05-13_59/" # hsar=0.3
 #path = "./experiments/sus_var-hsar-seed_one-no_importation-05-11-16_35"
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-11-17_58"
-
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-11-17_58"
+path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
+path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
 interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3)
+

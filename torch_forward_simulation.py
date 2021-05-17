@@ -14,7 +14,7 @@ torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(GPU)
 
 DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(GPU), torch.tensor([1.0]).to(GPU)) for alpha in torch_shape_vec]
 
-def torch_state_length_sampler(state, entrants):
+def torch_state_length_sampler(state, entrants): #state is the number of the state people are entering. entrants is the vector of individuals entering that state
     dist = DISTS[state]
     samples = dist.sample(entrants.shape)
     beta = delta_t/torch_scale_vec[state]
@@ -27,8 +27,8 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #start = time.time()
 
     ##  --- Move all numpy data structures on the GPU as pytorch tensors ---
-    # a matrix of probabilities with ith row jth column corresponding to the probability that ith individual is injected by the jth individual
-    probability_matrix = torch.from_numpy(np_probability_matrix).to(GPU)
+    # a matrix of probabilities with ith row jth column corresponding to the probability that ith individual is infected by the jth individual
+    population_matrix = torch.from_numpy(np_probability_matrix).to(GPU) # lacks the beta and delta_t terms
 
     state = torch.from_numpy(np_state).to(GPU)     ## move to GPU
     #print(state.type())
@@ -47,7 +47,12 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #print("GPU overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the GPU and should be fast ---
-    p_mat = beta_household * delta_t * probability_matrix
+    approximate_pmat = False:
+    if approximate_pmat:
+        p_mat = beta_household * delta_t * population_matrix
+    else:
+        print("New code testing no approximation pmat")
+        p_mat = (1-(1-beta_household)** delta_t) * population_matrix
 
     state_lengths[state == SUSCEPTIBLE_STATE] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == REMOVED_STATE] = np.inf     ## inf b/c doesn't change from removed
@@ -56,7 +61,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     import_flag = importation_probability.any()
     if import_flag:
         assert(duration>0), "A steady importation rate is defined, but no duration was given."
-    total_introductions = torch.sum((state == EXPOSED_STATE), axis=1)
+    total_introductions = torch.sum((state == EXPOSED_STATE), axis=1) # counting the total number of introductions
   
     run_flag = True
     while run_flag:
@@ -92,7 +97,9 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         ## infections within the households
         if inf_mask.any() and sus_mask.any():
             ## permute here works as np.transpose
+            print(p_mat)
             probabilities = p_mat * sus_mask * inf_mask.permute(0, 2, 1) # transposing to take what amounts to an outer product in each household
+            print(probabilities)
 
             ## do the same mask and random approach for infections, but within each
             ## household it's a size-by-size matrix for odds each person infects each other person
@@ -145,7 +152,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
                     #print("new state", new_state)
                     if entrants.nelement() > 0:
                         #print("s", s)
-                        assert s>SUSCEPTIBLE_STATE
+                        assert s>SUSCEPTIBLE_STATE # no one should be entering the susceptible state (they start there)
                         entrant_lengths = state_length_sampler(s, entrants)
                         state_lengths[torch.logical_and(new_state != state, new_state==s)] = entrant_lengths
             else:
