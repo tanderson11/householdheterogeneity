@@ -53,7 +53,7 @@ class SelectedPoint:
         return self.color
 
 class InteractiveFigure:
-    def __init__(self, path, subplots_shape, subfigure_types, baseline_key1_value, baseline_key2_value):
+    def __init__(self, path, subplots_shape, subfigure_types, baseline_key1_value, baseline_key2_value, recompute_logl=False):
         # -- Reading the files --
         os.chdir(path)
         
@@ -74,27 +74,45 @@ class InteractiveFigure:
 
         # --- Generating a logl df for faster everything ---
         try:
-            self.full_logl_df = pd.read_hdf('logl_df.hdf')  
+            if recompute_logl:
+                raise(FileNotFoundError)
+            else:
+                self.full_logl_df = pd.read_hdf('logl_df.hdf')  
         except FileNotFoundError: # make the logl df if it doesn't exist
-            logl_dfs = []
-            comparison_grouped = self.comparison_df.groupby([self.key1, self.key2])
+            comparison_grouped = self.comparison_df.groupby([self.key1, self.key2]) # groups by the two axes of the plots
+            frequencies = comparison_grouped.apply(lambda g: likelihood.compute_frequencies(g, ["size", "infections"])) # precompute the frequencies at each point because this is the expensive step
+            print(frequencies)
 
-            for k,baseline_g in self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"]):
-                #comparison_key = k[:2]
-                #print(k, comparison_key, comparison_grouped.keys)
-                #_logl_series = likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_grouped.get_group(comparison_key))
-                
-                _logl_df = self.comparison_df.groupby([self.key1, self.key2]).apply(lambda comparison_g: likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_g))
-                _logl_df = _logl_df.reset_index()
-                _logl_df["baseline " + self.key1], _logl_df["baseline " + self.key2], _logl_df["trialnum"] = k
-                #_logl_df[self.key2] =
-                #_logl_df["trialnum"] = 
-                print(_logl_df)
-                logl_dfs.append(_logl_df)
+            #import pdb; pdb.set_trace()
 
-            self.full_logl_df = pd.concat(logl_dfs)
+            baseline_grouped = self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"])
+            _logl_dfs = []
+
+            #for k,g in frequencies.groupby([self.key1, self.key2]):
+            #    import pdb; pdb.set_trace()
+            #    print(k,g)
+
+            print("END FREQUENCIES")
+            for k, baseline_g in self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"]):
+
+                _logl_df = frequencies.groupby([self.key1, self.key2]).apply(lambda freq_g: likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, freq_g.loc[freq_g.name]))
+                _logl_df = pd.concat({k: _logl_df}, names=["baseline " + self.key1, "baseline " + self.key2, "trialnum"]) # prepend the baseline keys as levels 
+
+                _logl_dfs.append(_logl_df)
+
+                print(k,"\n", _logl_df)
+
+            self.full_logl_df = pd.concat(_logl_dfs)
+
+
+                #likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, frequencies)
+
+
+            # this doesn't work because it pulls only when point from the comparison df, when we need to compute all of them
+            #self.full_logl_df = baseline_grouped.apply(lambda baseline_g: likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, frequencies.loc[baseline_g.name[:2]]))
+
             self.full_logl_df.to_hdf("logl_df.hdf", key='full_logl_df', mode='w')
-            print(full_logl_df)
+            print(self.full_logl_df)
 
         # -- Selecting the location of the baseline point --
         baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
@@ -224,8 +242,14 @@ def subfigure_factory(plot_type, ax, interactive):
         #logl_df = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
 
     if plot_type == 'logl heatmap':
-        logl_df = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
-        logl_df = logl_df.unstack() # may or may not want to unstack at this point
+        # new code with the full logl df
+        trialnumber = 0
+        logl_df = interactive.full_logl_df.unstack().unstack()[trialnumber]
+
+        logl_df_old = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
+        logl_df_old = logl_df.unstack() # may or may not want to unstack at this point
+        
+        import pdb; pdb.set_trace()
         print("LOGL DF\n", logl_df)
 
         if interactive.baseline_model_dict["importation_rate"] == 0:
@@ -233,7 +257,7 @@ def subfigure_factory(plot_type, ax, interactive):
         else:
             title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.baseline_model_dict["seeding"]["name"], interactive.baseline_model_dict["importation_rate"], interactive.baseline_model_dict["duration"])
                                                                                                 
-        subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
+        subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=False)
     
     elif plot_type == 'logl contour plot':
         logl_df = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
@@ -509,5 +533,5 @@ figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait h
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-11-17_58"
 path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
 path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
-interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3)
+interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3, recompute_logl=False)
 
