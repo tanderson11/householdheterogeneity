@@ -83,33 +83,20 @@ class InteractiveFigure:
             frequencies = comparison_grouped.apply(lambda g: likelihood.compute_frequencies(g, ["size", "infections"])) # precompute the frequencies at each point because this is the expensive step
             print(frequencies)
 
-            #import pdb; pdb.set_trace()
+            #  --- NEW METHOD ---
+            counts = self.full_baseline_df.groupby([self.key1, self.key2, "trialnum", "size", "infections"])["model"].count()
+            counts = counts.reindex(counts.index.rename(["baseline " + self.key1, "baseline " + self.key2, "trialnum", "size", "infections"]))
 
-            baseline_grouped = self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"])
-            _logl_dfs = []
+            new_freqs = np.log(frequencies).stack(level=[0,1])
 
-            #for k,g in frequencies.groupby([self.key1, self.key2]):
-            #    import pdb; pdb.set_trace()
-            #    print(k,g)
+            counts.name = "count"
+            new_freqs.name = "freq"
 
-            print("END FREQUENCIES")
-            for k, baseline_g in self.full_baseline_df.groupby([self.key1, self.key2, "trialnum"]):
-
-                _logl_df = frequencies.groupby([self.key1, self.key2]).apply(lambda freq_g: likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, freq_g.loc[freq_g.name]))
-                _logl_df = pd.concat({k: _logl_df}, names=["baseline " + self.key1, "baseline " + self.key2, "trialnum"]) # prepend the baseline keys as levels 
-
-                _logl_dfs.append(_logl_df)
-
-                print(k,"\n", _logl_df)
-
-            self.full_logl_df = pd.concat(_logl_dfs)
-
-
-                #likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, frequencies)
-
-
-            # this doesn't work because it pulls only when point from the comparison df, when we need to compute all of them
-            #self.full_logl_df = baseline_grouped.apply(lambda baseline_g: likelihood.log_likelihood_with_freqs(["size", "infections"], baseline_g, frequencies.loc[baseline_g.name[:2]]))
+            merged = pd.merge(new_freqs.reset_index(), counts.reset_index(), on=["size", "infections"])
+            indexed_merge = merged.set_index(["baseline " + self.key1, "baseline " + self.key2, "trialnum", self.key1, self.key2, "size", "infections"])
+            indexed_merge["logl"] = indexed_merge["freq"] * indexed_merge["count"]
+            self.full_logl_df = indexed_merge.groupby(["baseline " + self.key1, "baseline " + self.key2, "trialnum", self.key1, self.key2])["logl"].sum()
+            # --- END NEW METHOD ---
 
             self.full_logl_df.to_hdf("logl_df.hdf", key='full_logl_df', mode='w')
             print(self.full_logl_df)
@@ -186,7 +173,7 @@ class InteractiveFigure:
     
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
-        self.fig, self.ax = plt.subplots(*self.subplots_shape, figsize=(14,7))
+        self.fig, self.ax = plt.subplots(*self.subplots_shape, figsize=(15,7))
         #self.fig, self.ax = plt_handles
         print(self.ax.ravel())
         for subfigure_type, _ax in zip(self.subfigure_types, self.ax.ravel()):
@@ -234,7 +221,7 @@ class InteractiveFigure:
             self.new_baseline_flag = True
 
 def subfigure_factory(plot_type, ax, interactive):
-    possible_plot_types = ['logl heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms']
+    possible_plot_types = ['logl heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot']
     assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
 
     if plot_type == 'logl_heatmap' or plot_type == 'logl contour plot':
@@ -244,12 +231,13 @@ def subfigure_factory(plot_type, ax, interactive):
     if plot_type == 'logl heatmap':
         # new code with the full logl df
         trialnumber = 0
-        logl_df = interactive.full_logl_df.unstack().unstack()[trialnumber]
+        #import pdb; pdb.set_trace()
+        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
 
-        logl_df_old = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
-        logl_df_old = logl_df.unstack() # may or may not want to unstack at this point
+        #logl_df_old = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
+        #logl_df_old = logl_df.unstack() # may or may not want to unstack at this point
         
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         print("LOGL DF\n", logl_df)
 
         if interactive.baseline_model_dict["importation_rate"] == 0:
@@ -257,16 +245,22 @@ def subfigure_factory(plot_type, ax, interactive):
         else:
             title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.baseline_model_dict["seeding"]["name"], interactive.baseline_model_dict["importation_rate"], interactive.baseline_model_dict["duration"])
                                                                                                 
-        subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=False)
+        subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
     
     elif plot_type == 'logl contour plot':
-        logl_df = interactive.comparison_df.groupby([interactive.key1, interactive.key2]).apply(lambda g: likelihood.log_likelihood(["size", "infections"], interactive.baseline_df, g))
-        subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels")
+        trialnumber=0
+        # unstacked for Z
+        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber].unstack() # pulling out the coordinates of the baseline and the trialnumber
+        subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'average heatmap':
         average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean()).unstack()
         title = "Average infections per household"
         subfigure = Heatmap(ax, interactive, average_df, title)
+
+    elif plot_type == 'average contour plot':
+        average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean()).unstack()
+        subfigure = ContourPlot(ax, interactive, average_df, "Contours of average number of infections with default levels", color_label="average infections")
 
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, interactive)
@@ -288,6 +282,85 @@ class Subfigure:
         plt.sca(self.ax)
         plt.cla()
         print("clearing", type(self))
+
+class OnSeabornAxes(OnAxesSubfigure):
+    def __init__(self, ax, interactive):
+        OnAxesSubfigure.__init__(self, ax, interactive)
+
+    def click_to_coordinates(self, event_x, event_y):
+        pass
+
+    def xy_to_parameter_coordinates(self, x, y):
+        pass
+
+    def parameter_values_onto_grid(self, parameter_coordinates):
+        pass
+
+
+
+class OnAxesSubfigure(Subfigure):
+    '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
+    def __init__(self, ax, interactive):
+        Subfigure.__init__(self, ax, interactive)
+
+    def xy_to_parameter_values(self, x, y):
+        '''Takes a figure's x and y coordinates to a dictionary of the form key_name:key_coordinate.'''
+
+        key1_value = self.df.index.to_list()[int(y)]
+        key2_value = self.df.columns.to_list()[int(x)] #columns associated with key2, index with key1
+
+        parameter_coordinates = {self.interactive.key1:key1_value, self.interactive.key2:key2_value}
+
+        return parameter_coordinates
+
+    
+    def click(self, event_x, event_y, click_type):
+        x = np.floor(event_x)
+        y = np.floor(event_y)
+
+        parameter_coordinates = self.xy_to_parameter_values(x, y)
+
+        if click_type == "select":
+            self.interactive.toggle(parameter_coordinates)
+        elif click_type == "reset baseline":
+            self.interactive.reset_baseline(parameter_coordinates)
+
+    def parameter_values_onto_grid(self, parameter_coordinates):
+        # parameter coordinates is like {key1_name: key1_value ...}
+        x = float(self.df.columns.to_list().index(parameter_coordinates[self.interactive.key2])) #columns associated with key2, index with key1
+        y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
+
+        return x,y
+
+    def draw_patches(self):
+        for point in self.interactive.selected_points:
+            x,y = self.parameter_values_onto_grid(point.parameter_coordinates)
+            point.draw(self.ax, x, y)
+
+    def scatter_point_estimates(self, **kwargs):
+        print("IN SCATTER")
+        print(self.logl_df)
+
+        width = self.logl_df.unstack().columns.size
+
+        key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
+        key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
+        #scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
+
+        x_mins = []
+        y_mins = []
+        for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+            #import pdb; pdb.set_trace()
+            idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
+            x_min = idx % width + 0.5 + (np.random.rand(1)/2 - 0.25)# the middle of the cell with random fuzzing so there's no overlap
+            y_min = idx // width + 0.5 + (np.random.rand(1)/2 - 0.25)
+
+            x_mins.append(x_min)
+            y_mins.append(y_min)
+        
+        #import pdb; pdb.set_trace()
+
+        self.ax.scatter(x_mins, y_mins, s=4, **kwargs) 
 
 class SelectionDependentSubfigure(Subfigure):
     def df_at_point(self, point):
@@ -412,70 +485,58 @@ class InfectionHistogram(SelectionDependentSubfigure):
         utilities.bar_chart_new(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
 
 
-class ContourPlot(Subfigure):
-    def __init__(self, ax, interactive, df, title):
-        Subfigure.__init__(self, ax, interactive)
-
-        #Z = df.pivot_table(index='x', columns='y', values='z').T.values
-        Z = df.unstack()
-        print(Z)
-        #X_unique = np.sort(contour_data.x.unique())
-        #Y_unique = np.sort(contour_data.y.unique())
-        #X, Y = np.meshgrid(X_unique, Y_unique)
-
+class ContourPlot(OnAxesSubfigure):
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
+        OnAxesSubfigure.__init__(self, ax, interactive)
 
         self.df = df
-        self.Z = Z
+        self.Z = df
         self.title = title
+        self.color_label = color_label
+
+        self.scatter_stars = scatter_stars
 
         
     def draw(self):
         Subfigure.draw(self)
-        #import pdb; pdb.set_trace()
-        #print(self.Z.index, self.Z.columns)
 
         X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
 
         contourf = plt.contourf(X, Y, self.Z)
 
         cbar = plt.colorbar(contourf)
-        cbar.ax.set_ylabel('logl')
+        cbar.ax.set_ylabel(self.color_label)
         # Add the contour line levels to the colorbar
         #cbar.add_lines(contourf)
+
+        if self.scatter_stars:
+            key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
+            key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
+            width = self.logl_df.unstack().columns.size
+            x_mins = []
+            y_mins = []
+            for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+                idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
+                x_min = idx % width
+                y_min = idx // width
+
+                # need to convert the x and y into parameter coordinates
+
+                x_mins.append(x_min)
+                y_mins.append(y_min)
 
         plt.title(self.title)
         plt.xlabel(self.interactive.key2)
         plt.ylabel(self.interactive.key1)
 
-class Heatmap(Subfigure):
-    def __init__(self, ax, interactive, df, title, scatter_stars=False):
-        Subfigure.__init__(self, ax, interactive)
-        self.df = df
+class Heatmap(OnAxesSubfigure):
+    def __init__(self, ax, interactive, logl_df, title, scatter_stars=True):
+        OnAxesSubfigure.__init__(self, ax, interactive)
+        self.logl_df = logl_df
+        self.df = logl_df.unstack()
         self.title = title
 
         self.scatter_stars = scatter_stars
-
-    def xy_to_parameter_values(self, x, y):
-        '''Takes a figure's x and y coordinates to a dictionary of the form key_name:key_coordinate.'''
-        key1_value = self.df.index.to_list()[int(y)]
-        key2_value = self.df.columns.to_list()[int(x)] #columns associated with key2, index with key1
-
-        parameter_coordinates = {self.interactive.key1:key1_value, self.interactive.key2:key2_value}
-
-        return parameter_coordinates
-
-    
-    def click(self, event_x, event_y, click_type):
-        x = np.floor(event_x)
-        y = np.floor(event_y)
-
-        parameter_coordinates = self.xy_to_parameter_values(x, y)
-
-        if click_type == "select":
-            self.interactive.toggle(parameter_coordinates)
-        elif click_type == "reset baseline":
-            self.interactive.reset_baseline(parameter_coordinates)
-        
 
     def draw(self):
         Subfigure.draw(self)
@@ -483,55 +544,26 @@ class Heatmap(Subfigure):
         sns.heatmap(self.df, ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
 
         if self.scatter_stars:
-            width = self.df.columns.size
-
-            key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
-            key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
-            scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
-
-            x_mins = []
-            y_mins = []
-            for _,baseline_g in scatter_df.groupby("trialnum"):
-                _logl_df = self.interactive.comparison_df.groupby([self.interactive.key1, self.interactive.key2]).apply(lambda comparison_g: likelihood.log_likelihood(["size", "infections"], baseline_g, comparison_g))
-
-                idx = _logl_df.reset_index()[0].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-                x_min = idx % width + 0.5
-                y_min = idx // width + 0.5
-
-                x_mins.append(x_min)
-                y_mins.append(y_min)
-            
-            #import pdb; pdb.set_trace()
-
-            self.ax.scatter(x_mins, y_mins, marker='*', s=100, color='blue') 
+            self.scatter_point_estimates(color='blue')
 
         plt.title(self.title)
 
         self.draw_patches()
-
-    def parameter_values_onto_grid(self, parameter_coordinates):
-        # parameter coordinates is like {key1_name: key1_value ...}
-        x = float(self.df.columns.to_list().index(parameter_coordinates[self.interactive.key2])) #columns associated with key2, index with key1
-        y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
-
-        return x,y
-
-    def draw_patches(self):
-        for point in self.interactive.selected_points:
-            x,y = self.parameter_values_onto_grid(point.parameter_coordinates)
-            point.draw(self.ax, x, y)
             
 
 #fig, ax = plt.subplots(2,2)
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "two point likelihoods"]
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "trait histograms"]
-figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]
-
+#figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]
+figures = ["logl heatmap", "infection histograms", "logl contour plot", "average contour plot"]
 
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-05-13_59/" # hsar=0.3
 #path = "./experiments/sus_var-hsar-seed_one-no_importation-05-11-16_35"
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-11-17_58"
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
+
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
+path = "./experiments/inf_var-hsar-seed_one-no_importation-05-17-21:54"
+
 interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3, recompute_logl=False)
 
