@@ -47,7 +47,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #print("GPU overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the GPU and should be fast ---
-    approximate_pmat = False:
+    approximate_pmat = False
     if approximate_pmat:
         p_mat = beta_household * delta_t * population_matrix
     else:
