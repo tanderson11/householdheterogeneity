@@ -286,6 +286,6 @@ def vaccinate_fraction(shape, fraction_vaccinated):
 
 # calculate power by passing two criteria. lambda threshold; fisher random p value 0.05
 # ex. 95% of the time higher than 30% (effect)
-def power(ve, threshold, fisher_p_cutoff):
+def power(ve, fisher_p_cutoff, threshold=0.):
     print("Calculating power")# of {0}".format(ve.name))
     return ve[(ve["VE"] > threshold) & (ve["fisher p value"] < fisher_p_cutoff)]["VE"].count() / ve["VE"].count()
