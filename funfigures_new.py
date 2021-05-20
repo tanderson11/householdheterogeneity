@@ -37,11 +37,12 @@ class SelectedPoint:
     def __str__(self):
         return "Selected point at {0}".format(self.parameter_coordinates)
         
-    def draw(self, ax, x, y):
+    def draw(self, ax, x, y, do_offset, x_scale, y_scale):
+        # refactor this so it calls a draw_patch method of the subfigure
         if self.is_baseline:
-            patch = ax.add_patch(patches.Circle((x+0.5,y+0.5), 0.5, fill=False, edgecolor=self.color, lw=2))
+            patch = ax.add_patch(patches.Ellipse((x+0.5*do_offset,y+0.5*do_offset), 1*x_scale, 1*y_scale, fill=False, edgecolor=self.color, lw=2))
         else:
-            patch = ax.add_patch(patches.Rectangle((x,y), 1, 1, fill=False, edgecolor=self.color, lw=2))
+            patch = ax.add_patch(patches.Rectangle((x,y), 1*x_scale, 1*y_scale, fill=False, edgecolor=self.color, lw=2))
 
         self.patches.append(patch) 
         return patch
@@ -139,19 +140,24 @@ class InteractiveFigure:
         if i_to_remove == len(self.selected_points):
             self.select(parameter_coordinates, **kwargs)
         else:
-
             removed = self.selected_points.pop(i_to_remove)
 
             self.available_colors.append(removed.remove())
-            for ax in self.ax.ravel():
-                sf = ax.associated_subfigure
-                if isinstance(sf, Heatmap):
-                    sf.draw_patches()
-                elif not(isinstance(sf, ContourPlot)):
-                    sf.draw()
+            self.draw_after_toggle()
 
         self.fig.canvas.draw()        
-        
+    
+    def draw_after_toggle(self):
+        for ax in self.ax.ravel():
+            sf = ax.associated_subfigure
+            if isinstance(sf, Heatmap):
+                sf.draw_patches()
+            elif isinstance(sf, ContourPlot):
+                print("DRAWING PATCHES!")
+                sf.draw_patches()
+            elif not(isinstance(sf, ContourPlot)):
+                sf.draw()
+
     def select(self, parameter_coordinates, **kwargs):
         try:
             color = self.available_colors.pop()
@@ -162,12 +168,8 @@ class InteractiveFigure:
         point = SelectedPoint(parameter_coordinates, color,  **kwargs)
         self.selected_points.append(point)
 
-        for ax in self.ax.ravel():
-            sf = ax.associated_subfigure
-            if isinstance(sf, Heatmap):
-                sf.draw_patches()
-            elif not(isinstance(sf, ContourPlot)):
-                sf.draw()
+        self.draw_after_toggle()
+
         
         return point
     
@@ -282,85 +284,6 @@ class Subfigure:
         plt.sca(self.ax)
         plt.cla()
         print("clearing", type(self))
-
-class OnSeabornAxes(OnAxesSubfigure):
-    def __init__(self, ax, interactive):
-        OnAxesSubfigure.__init__(self, ax, interactive)
-
-    def click_to_coordinates(self, event_x, event_y):
-        pass
-
-    def xy_to_parameter_coordinates(self, x, y):
-        pass
-
-    def parameter_values_onto_grid(self, parameter_coordinates):
-        pass
-
-
-
-class OnAxesSubfigure(Subfigure):
-    '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
-    def __init__(self, ax, interactive):
-        Subfigure.__init__(self, ax, interactive)
-
-    def xy_to_parameter_values(self, x, y):
-        '''Takes a figure's x and y coordinates to a dictionary of the form key_name:key_coordinate.'''
-
-        key1_value = self.df.index.to_list()[int(y)]
-        key2_value = self.df.columns.to_list()[int(x)] #columns associated with key2, index with key1
-
-        parameter_coordinates = {self.interactive.key1:key1_value, self.interactive.key2:key2_value}
-
-        return parameter_coordinates
-
-    
-    def click(self, event_x, event_y, click_type):
-        x = np.floor(event_x)
-        y = np.floor(event_y)
-
-        parameter_coordinates = self.xy_to_parameter_values(x, y)
-
-        if click_type == "select":
-            self.interactive.toggle(parameter_coordinates)
-        elif click_type == "reset baseline":
-            self.interactive.reset_baseline(parameter_coordinates)
-
-    def parameter_values_onto_grid(self, parameter_coordinates):
-        # parameter coordinates is like {key1_name: key1_value ...}
-        x = float(self.df.columns.to_list().index(parameter_coordinates[self.interactive.key2])) #columns associated with key2, index with key1
-        y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
-
-        return x,y
-
-    def draw_patches(self):
-        for point in self.interactive.selected_points:
-            x,y = self.parameter_values_onto_grid(point.parameter_coordinates)
-            point.draw(self.ax, x, y)
-
-    def scatter_point_estimates(self, **kwargs):
-        print("IN SCATTER")
-        print(self.logl_df)
-
-        width = self.logl_df.unstack().columns.size
-
-        key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
-        key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
-        #scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
-
-        x_mins = []
-        y_mins = []
-        for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
-            #import pdb; pdb.set_trace()
-            idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-            x_min = idx % width + 0.5 + (np.random.rand(1)/2 - 0.25)# the middle of the cell with random fuzzing so there's no overlap
-            y_min = idx // width + 0.5 + (np.random.rand(1)/2 - 0.25)
-
-            x_mins.append(x_min)
-            y_mins.append(y_min)
-        
-        #import pdb; pdb.set_trace()
-
-        self.ax.scatter(x_mins, y_mins, s=4, **kwargs) 
 
 class SelectionDependentSubfigure(Subfigure):
     def df_at_point(self, point):
@@ -484,12 +407,127 @@ class InfectionHistogram(SelectionDependentSubfigure):
         restricted_df = pd.concat(restrictions)
         utilities.bar_chart_new(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
 
+class OnAxesSubfigure(Subfigure):
+    '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
+    def __init__(self, ax, interactive):
+        Subfigure.__init__(self, ax, interactive)
+    
+    def click(self, event_x, event_y, click_type):
+        parameter_coordinates = self.click_to_coordinates(event_x, event_y)
 
-class ContourPlot(OnAxesSubfigure):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
+        if click_type == "select":
+            self.interactive.toggle(parameter_coordinates)
+        elif click_type == "reset baseline":
+            self.interactive.reset_baseline(parameter_coordinates)
+
+    def draw_patches(self):
+        for point in self.interactive.selected_points:
+            x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
+            print(self)
+            print(point,x,y)
+            point.draw(self.ax, x, y, self.patches_do_offset, self.patches_x_scale, self.patches_y_scale)
+
+    def scatter_point_estimates(self, **kwargs):
+        print("IN SCATTER")
+        print(self.logl_df)
+
+        width = self.logl_df.unstack().columns.size
+
+        key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
+        key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
+        #scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
+
+        x_mins = []
+        y_mins = []
+        for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+            #import pdb; pdb.set_trace()
+            idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
+            x_min = idx % width + 0.5 + (np.random.rand(1)/2 - 0.25)# the middle of the cell with random fuzzing so there's no overlap
+            y_min = idx // width + 0.5 + (np.random.rand(1)/2 - 0.25)
+
+            x_mins.append(x_min)
+            y_mins.append(y_min)
+        
+        #import pdb; pdb.set_trace()
+
+        self.ax.scatter(x_mins, y_mins, s=4, **kwargs) 
+
+class OnMatplotlibAxes(OnAxesSubfigure):
+    def __init__(self, ax, interactive):
         OnAxesSubfigure.__init__(self, ax, interactive)
+        self.x_grid_values = self.df.columns.to_numpy()
+        self.y_grid_values = self.df.index.to_numpy()
+        
+        print("XGRID:", self.x_grid_values)
+        print("YGRID:", self.y_grid_values)
 
+        self.patches_do_offset, self.patches_x_scale, self.patches_y_scale = 0, (self.x_grid_values[-1]-self.x_grid_values[0]) / (len(self.x_grid_values)), (self.y_grid_values[-1]-self.y_grid_values[0]) / (len(self.y_grid_values))
+        #import pdb; pdb.set_trace()
+
+    def click_to_coordinates(self, event_x, event_y):
+        parameter_coordinates = self.xy_to_parameter_coordinates(event_x, event_y)
+
+        return parameter_coordinates
+
+    def xy_to_parameter_coordinates(self, x, y): # is this reversed in terms of x and y relative to seaborn?
+        #x,y = (y,x) THE X AND Y ARE SWITCHED RELATIVE TO SEABORN
+
+        #print("xy to param")
+        #print(x,y)
+        # we need to snap continuous x and y values onto the grid defined by the dataframe
+        x_where_lower = np.ma.MaskedArray(self.x_grid_values, self.x_grid_values > x) # we want to go to the closest point that's up and to the right so things snap to grid in a consistent way across figures
+        #print(self.x_grid_values < x, x_where_lower, x-x_where_lower)
+        x_idx = (x-x_where_lower).argmin() # nearest value where lower
+
+        y_where_lower = np.ma.MaskedArray(self.y_grid_values, self.y_grid_values > y)
+        #print(self.y_grid_values > y, y_where_lower, y-y_where_lower)
+        y_idx = (y-y_where_lower).argmin()
+
+        
+        parameter_coordinates = {self.interactive.key1:self.y_grid_values[y_idx], self.interactive.key2:self.x_grid_values[x_idx]} # these are inverted because key1 is used in the rows
+        #print(parameter_coordinates)
+        #import pdb; pdb.set_trace()
+        return parameter_coordinates
+
+    def parameter_coordinates_to_xy(self, parameter_coordinates):
+        # this is easy because the xy on the matplotlib axes just are parameter coordinates
+        x,y = parameter_coordinates[self.interactive.key2], parameter_coordinates[self.interactive.key1] # key order inverted as always
+        #import pdb; pdb.set_trace()
+        return x,y
+
+class OnSeabornAxes(OnAxesSubfigure):
+    def __init__(self, ax, interactive):
+        OnAxesSubfigure.__init__(self, ax, interactive)
+        self.patches_do_offset, self.patches_x_scale, self.patches_y_scale = 1, 1, 1
+
+    def click_to_coordinates(self, event_x, event_y):
+        x = np.floor(event_x)
+        y = np.floor(event_y)
+
+        parameter_coordinates = self.xy_to_parameter_coordinates(x, y)
+
+        return parameter_coordinates
+
+    def xy_to_parameter_coordinates(self, x, y):
+        key1_value = self.df.index.to_list()[int(y)]
+        key2_value = self.df.columns.to_list()[int(x)] #columns associated with key2, index with key1
+
+        parameter_coordinates = {self.interactive.key1:key1_value, self.interactive.key2:key2_value}
+
+        return parameter_coordinates
+
+    def parameter_coordinates_to_xy(self, parameter_coordinates):
+        # parameter coordinates is like {key1_name: key1_value ...}
+        x = float(self.df.columns.to_list().index(parameter_coordinates[self.interactive.key2])) #columns associated with key2, index with key1
+        y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
+
+        return x,y
+
+class ContourPlot(OnMatplotlibAxes):
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
         self.df = df
+        OnMatplotlibAxes.__init__(self, ax, interactive)
+        
         self.Z = df
         self.title = title
         self.color_label = color_label
@@ -500,9 +538,13 @@ class ContourPlot(OnAxesSubfigure):
     def draw(self):
         Subfigure.draw(self)
 
-        X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
-
+        #X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
+        X,Y = np.meshgrid(self.Z.columns, self.Z.index)
         contourf = plt.contourf(X, Y, self.Z)
+
+        self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
+
+
 
         cbar = plt.colorbar(contourf)
         cbar.ax.set_ylabel(self.color_label)
@@ -529,9 +571,12 @@ class ContourPlot(OnAxesSubfigure):
         plt.xlabel(self.interactive.key2)
         plt.ylabel(self.interactive.key1)
 
-class Heatmap(OnAxesSubfigure):
+        plt.sca(self.ax)
+        self.draw_patches()
+
+class Heatmap(OnSeabornAxes):
     def __init__(self, ax, interactive, logl_df, title, scatter_stars=True):
-        OnAxesSubfigure.__init__(self, ax, interactive)
+        OnSeabornAxes.__init__(self, ax, interactive)
         self.logl_df = logl_df
         self.df = logl_df.unstack()
         self.title = title
@@ -563,7 +608,10 @@ figures = ["logl heatmap", "infection histograms", "logl contour plot", "average
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
 
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-17-21:54"
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-17-21:54" #size 500
+#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-00:48/" #size 500
+path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-17:08" #size 2000
+
 
 interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3, recompute_logl=False)
 
