@@ -30,28 +30,10 @@ class SelectedPoint:
         self.parameter_coordinates = parameter_coordinates
         self.color = color
 
-        self.patches = []
-
         self.is_baseline = is_baseline
 
     def __str__(self):
         return "Selected point at {0}".format(self.parameter_coordinates)
-        
-    def draw(self, ax, x, y, do_offset, x_scale, y_scale):
-        # refactor this so it calls a draw_patch method of the subfigure
-        if self.is_baseline:
-            patch = ax.add_patch(patches.Ellipse((x+0.5*do_offset,y+0.5*do_offset), 1*x_scale, 1*y_scale, fill=False, edgecolor=self.color, lw=2))
-        else:
-            patch = ax.add_patch(patches.Rectangle((x,y), 1*x_scale, 1*y_scale, fill=False, edgecolor=self.color, lw=2))
-
-        self.patches.append(patch) 
-        return patch
-
-    def remove(self):
-        for patch in self.patches:
-            patch.remove()
-
-        return self.color
 
 class InteractiveFigure:
     def __init__(self, path, subplots_shape, subfigure_types, baseline_key1_value, baseline_key2_value, recompute_logl=False):
@@ -142,7 +124,11 @@ class InteractiveFigure:
         else:
             removed = self.selected_points.pop(i_to_remove)
 
-            self.available_colors.append(removed.remove())
+            for ax in self.ax.ravel():
+                if ax.associated_subfigure.has_patches == True:
+                    color = ax.associated_subfigure.remove_patch(removed) #remove the patch from each subfigure that uses patches
+
+            self.available_colors.append(color)
             self.draw_after_toggle()
 
         self.fig.canvas.draw()        
@@ -150,12 +136,9 @@ class InteractiveFigure:
     def draw_after_toggle(self):
         for ax in self.ax.ravel():
             sf = ax.associated_subfigure
-            if isinstance(sf, Heatmap):
+            if sf.has_patches: # subfigures that have patches need to update the patches
                 sf.draw_patches()
-            elif isinstance(sf, ContourPlot):
-                print("DRAWING PATCHES!")
-                sf.draw_patches()
-            elif not(isinstance(sf, ContourPlot)):
+            elif isinstance(sf, SelectionDependentSubfigure): # subfigures that depend on the selection need to redraw
                 sf.draw()
 
     def select(self, parameter_coordinates, **kwargs):
@@ -279,6 +262,7 @@ class Subfigure:
     def __init__(self, ax, interactive):
         self.ax = ax
         self.interactive = interactive
+        self.has_patches = False
 
     def draw(self):
         plt.sca(self.ax)
@@ -411,6 +395,8 @@ class OnAxesSubfigure(Subfigure):
     '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
     def __init__(self, ax, interactive):
         Subfigure.__init__(self, ax, interactive)
+        self.patches = {}
+        self.has_patches = True
     
     def click(self, event_x, event_y, click_type):
         parameter_coordinates = self.click_to_coordinates(event_x, event_y)
@@ -423,9 +409,12 @@ class OnAxesSubfigure(Subfigure):
     def draw_patches(self):
         for point in self.interactive.selected_points:
             x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
-            print(self)
-            print(point,x,y)
-            point.draw(self.ax, x, y, self.patches_do_offset, self.patches_x_scale, self.patches_y_scale)
+
+            try:
+                self.patches[(x,y)]
+            except KeyError:
+                patch = self.draw_patch(point, x,y)
+                self.patches[(x,y)] = patch
 
     def scatter_point_estimates(self, **kwargs):
         print("IN SCATTER")
@@ -452,6 +441,12 @@ class OnAxesSubfigure(Subfigure):
 
         self.ax.scatter(x_mins, y_mins, s=4, **kwargs) 
 
+    def remove_patch(self, point):
+        x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
+        self.patches.pop((x,y)).remove()
+
+        return point.color
+
 class OnMatplotlibAxes(OnAxesSubfigure):
     def __init__(self, ax, interactive):
         OnAxesSubfigure.__init__(self, ax, interactive)
@@ -470,10 +465,9 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         return parameter_coordinates
 
     def xy_to_parameter_coordinates(self, x, y): # is this reversed in terms of x and y relative to seaborn?
-        #x,y = (y,x) THE X AND Y ARE SWITCHED RELATIVE TO SEABORN
+        x = x+1*self.patches_x_scale
+        y = y+1*self.patches_y_scale
 
-        #print("xy to param")
-        #print(x,y)
         # we need to snap continuous x and y values onto the grid defined by the dataframe
         x_where_lower = np.ma.MaskedArray(self.x_grid_values, self.x_grid_values > x) # we want to go to the closest point that's up and to the right so things snap to grid in a consistent way across figures
         #print(self.x_grid_values < x, x_where_lower, x-x_where_lower)
@@ -495,10 +489,19 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         #import pdb; pdb.set_trace()
         return x,y
 
+    def draw_patch(self, point, x,y):
+        # refactor this so it calls a draw_patch method of the subfigure
+
+        if point.is_baseline:
+            patch = self.ax.add_patch(patches.Ellipse((x,y), 1*self.patches_x_scale, 1*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
+        else:
+            patch = self.ax.add_patch(patches.Rectangle((x-0.5*self.patches_x_scale,y-0.5*self.patches_y_scale), 1*self.patches_x_scale, 1*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
+
+        return patch
+
 class OnSeabornAxes(OnAxesSubfigure):
     def __init__(self, ax, interactive):
         OnAxesSubfigure.__init__(self, ax, interactive)
-        self.patches_do_offset, self.patches_x_scale, self.patches_y_scale = 1, 1, 1
 
     def click_to_coordinates(self, event_x, event_y):
         x = np.floor(event_x)
@@ -522,6 +525,16 @@ class OnSeabornAxes(OnAxesSubfigure):
         y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
 
         return x,y
+
+    def draw_patch(self, point, x,y):
+        # refactor this so it calls a draw_patch method of the subfigure
+
+        if point.is_baseline:
+            patch = self.ax.add_patch(patches.Ellipse((x+0.5,y+0.5), 1, 1, fill=False, edgecolor=point.color, lw=2))
+        else:
+            patch = self.ax.add_patch(patches.Rectangle((x,y), 1, 1, fill=False, edgecolor=point.color, lw=2))
+
+        return patch
 
 class ContourPlot(OnMatplotlibAxes):
     def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
@@ -609,8 +622,8 @@ figures = ["logl heatmap", "infection histograms", "logl contour plot", "average
 
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
 #path = "./experiments/inf_var-hsar-seed_one-no_importation-05-17-21:54" #size 500
-#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-00:48/" #size 500
-path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-17:08" #size 2000
+path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-00:48/" #size 500
+#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-17:08" #size 2000
 
 
 interactive = InteractiveFigure(path, (2,2), figures, 0.8, 0.3, recompute_logl=False)
