@@ -23,7 +23,7 @@ seed_zero.name="seed_zero"
 
 ### Graphing utility functions
 
-def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwargs): 
+def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwargs):
     grouped = df.groupby(key+grouping)
 
     # count the occcurences and apply a sort so the shape of the dataframe doesn't change contextually
@@ -35,7 +35,10 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     # and this was the old way
     #counted_unstacked = counts.unstack(level=list(range(len(key))))
 
+    import pdb; pdb.set_trace()
+
     counted_unstacked.plot.bar(**kwargs)
+    return counted_unstacked
     
 def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])

@@ -18,8 +18,7 @@ import itertools
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-EMPIRICAL_KEY1 = 0.0
-EMPIRICAL_KEY2 = 0.0
+EMPIRICAL_TRIAL_ID = -1
 
 # Manager
 # maintains registry of axes -> object
@@ -39,41 +38,61 @@ class SelectedPoint:
     def __str__(self):
         return "Selected point at {0}".format(self.parameter_coordinates)
 
-
-
-
-# make point estimates a separate function and then calculate point estimate for empirical and insert it into the full df in the right spot
-# 
 class InteractiveFigure:
     def __init__(self, path, subplots_shape, subfigure_types, baseline_key1_value, baseline_key2_value, recompute_logl=False, empirical_path=False):
 
         # -- Reading the files --
+        self.comparison_df = pq.read_table(path+'comparison_df.parquet').to_pandas()
+        with open(path+'keys.json', 'r') as handle:
+            self.key1, self.key2 = json.load(handle)
+
         self.full_baseline_df = pq.read_table(path+'baseline_df.parquet').to_pandas()
 
         if empirical_path:
             self.empirical = True
             empirical_df = pq.read_table(empirical_path+"empirical_df.parquet").to_pandas()
+            empirical_logl_df = likelihood.logl_new(empirical_df, self.comparison_df, [self.key1, self.key2])
+            print("EMPIRICAL LOGL DF\n", empirical_logl_df)
+
+            # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
+            width = empirical_logl_df.unstack().columns.size # verify that this still works
+
+            idx = empirical_logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value
+            x_min = idx % width
+            y_min = idx // width
+
+            print(x_min, y_min)
+            # overwrites any arguments passed to the constructor with the point estimate
+            baseline_key1_value = empirical_logl_df.unstack().reset_index()[self.key1].to_list()[y_min]
+            baseline_key2_value = empirical_logl_df.unstack().columns.to_list()[x_min] #columns associated with key2, index with key1
+
+            # add labels to the empirical df so its position can be identified
+            empirical_df[self.key1] = baseline_key1_value
+            empirical_df[self.key2] = baseline_key2_value
+            empirical_df["trialnum"] = EMPIRICAL_TRIAL_ID # -1 signals the empirical trial
+            baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
+            print("EMPIRICAL BASELINE COORDINATES\n", baseline_coordinates)
 
             self.baseline_df = empirical_df
-
             self.full_baseline_df = pd.concat([empirical_df, self.full_baseline_df])
 
         else:
             self.empirical = False
+            # -- Selecting the location of the baseline point --
+            baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
             self.baseline_df = self.baseline_at_point(baseline_key1_value, baseline_key2_value, one_trial=True)
 
-            with open(baseline_path+"default_model.json", 'r') as handle:
-                self.baseline_model_dict = json.load(handle) # we load the baseline parameters from a json file
-            print(self.baseline_model_dict)
+        with open(path+"default_model.json", 'r') as handle:
+            self.baseline_model_dict = json.load(handle) # we load the baseline parameters from a json file
+        print(self.baseline_model_dict)
 
-            with open(baseline_path+"baseline_sizes.json", 'r') as handle:
-                self.baseline_sizes = json.load(handle) # we load the baseline parameters from a json file
+        with open(path+"baseline_sizes.json", 'r') as handle:
+            self.baseline_sizes = json.load(handle) # we load the baseline parameters from a json file
 
-        os.chdir(comparison_path)
+        with open(path+"default_key_values.json", 'r') as handle:
+            self.default_key_values = json.load(handle) # we load the baseline parameters from a json file 
 
-        with open('keys.json', 'r') as handle:
-            self.key1, self.key2 = json.load(handle)
-        self.comparison_df = pq.read_table('comparison_df.parquet').to_pandas()
+        os.chdir(path)
 
         print("FULL BASELINE\n", self.full_baseline_df)
 
@@ -87,54 +106,18 @@ class InteractiveFigure:
                 self.full_logl_df = self.full_logl_df.squeeze() #when the logl df is built it's a named series, but when we save it in pyarrow it's a Table, we need to make it a series again
 
         except FileNotFoundError: # make the logl df if it doesn't exist
-            self.full_logl_df = likelihood.logl_new(self.baseline_df, self.comparison_df, [self.key1, self.key2])
-
-            comparison_grouped = self.comparison_df.groupby([self.key1, self.key2]) # groups by the two axes of the plots
-            frequencies = comparison_grouped.apply(lambda g: likelihood.compute_frequencies(g, ["size", "infections"])) # precompute the frequencies at each point because this is the expensive step
-            print("FREQUENCIES\n", frequencies)
-
-            #  --- NEW METHOD ---
-            counts = self.full_baseline_df.groupby([self.key1, self.key2, "trialnum", "size", "infections"])["model"].count()
-            counts = counts.reindex(counts.index.rename(["baseline " + self.key1, "baseline " + self.key2, "trialnum", "size", "infections"]))
-
-            if isinstance(frequencies, pd.core.series.Series): # if there are multiple sizes, the result comes out in a series, if not it comes out in a dataframe that needs the size to be stacked back in as a column
-                new_freqs = np.log(frequencies)
-            else:
-                new_freqs = np.log(frequencies).stack(level=[0,1])
-
-            counts.name = "count"
-            new_freqs.name = "freq"
-
-            # we make a table of the log frequency values, and then we just have to 'line it up' with the counts and do arithmetic, most of the work is in lining it up
-            merged = pd.merge(new_freqs.reset_index(), counts.reset_index(), on=["size", "infections"])
-            indexed_merge = merged.set_index(["baseline " + self.key1, "baseline " + self.key2, "trialnum", self.key1, self.key2, "size", "infections"])
-            indexed_merge["logl"] = indexed_merge["freq"] * indexed_merge["count"]
-            self.full_logl_df = indexed_merge.groupby(["baseline " + self.key1, "baseline " + self.key2, "trialnum", self.key1, self.key2])["logl"].sum()
-            # --- END NEW METHOD ---
+            self.full_logl_df = likelihood.logl_new(self.full_baseline_df, self.comparison_df, [self.key1, self.key2])
 
             print(self.full_logl_df)
             pq.write_table(pa.Table.from_pandas(pd.DataFrame(self.full_logl_df)), "logl_df.parquet")
 
-        # -- Selecting the location of the baseline point --
-        # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
-        if self.empirical:
-            width = self.logl_df.unstack().columns.size
-
-            _logl_df = self.interactive.full_logl_df.loc[EMPIRICAL_KEY1, EMPIRICAL_KEY2, "empirical"]
-            idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-            x_min = idx % width
-            y_min = idx // width
-
-
-
-        baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
-        self.baseline_color = "blue"
+        self.baseline_color = "red"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
         
         self.selected_points = [self.baseline_point]
         
         # --
-        self.available_colors = ["orange", "red", "green", "violet"]
+        self.available_colors = ["orange", "blue", "green", "violet"]
 
         self.subplots_shape = subplots_shape
         self.subfigure_types = subfigure_types
@@ -256,13 +239,14 @@ def subfigure_factory(plot_type, ax, interactive):
     if plot_type == 'logl heatmap':
         # new code with the full logl df
         trialnumber = 0
-        #import pdb; pdb.set_trace()
         logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
 
         print("LOGL DF\n", logl_df)
 
         if interactive.empirical:
-            title = "Log likelihood of observing empirical dataset"
+            #import pdb; pdb.set_trace()
+            sizes=interactive.baseline_df.groupby("size")["model"].count().to_dict() # idiom for getting the counts at different sizes
+            title = "Log likelihood of observing empirical dataset\nsizes={}\ndefault values={}".format(sizes, interactive.default_key_values) 
         else:
             if interactive.baseline_model_dict["importation_rate"] == 0:
                 title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation=0".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.baseline_model_dict["seeding"]["name"])
@@ -274,7 +258,7 @@ def subfigure_factory(plot_type, ax, interactive):
     elif plot_type == 'logl contour plot':
         trialnumber=0
         # unstacked for Z
-        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber].unstack() # pulling out the coordinates of the baseline and the trialnumber
+        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
         
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
@@ -284,7 +268,8 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = Heatmap(ax, interactive, average_df, title)
 
     elif plot_type == 'average contour plot':
-        average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean()).unstack()
+        average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())
+        #print("AVERAGE DF\n", average_df, average_df.unstack())
         subfigure = ContourPlot(ax, interactive, average_df, "Contours of average number of infections with default levels", color_label="average infections")
 
     elif plot_type == 'infection histograms':
@@ -396,7 +381,7 @@ class TraitHistograms(SelectionDependentSubfigure):
 
         possible_traits = ["sus_var", "inf_var"]
         if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
-            print("WARNING: both keys are traits. Graphing only key1")
+            print("WARNING: both keys are traits. Graphing only key2")
 
         if self.interactive.key1 in possible_traits:
             graph_key = self.interactive.key1
@@ -421,7 +406,6 @@ class InfectionHistogram(SelectionDependentSubfigure):
         color_dict = {}
         restrictions = []
         for p in self.interactive.selected_points:
-
             labels, restriction = self.df_at_point(p)
             color_dict[tuple(labels)] = p.color
 
@@ -448,8 +432,8 @@ class OnAxesSubfigure(Subfigure):
 
     def draw_patches(self):
         for point in self.interactive.selected_points:
-            if self.interactive.empirical == False or point.is_baseline == False: # draw the patch if it's a selection of if it's the baseline but not empirical
-
+            if True:
+            #if self.interactive.empirical == False or point.is_baseline == False: # draw the patch if it's a selection or if it's the baseline but not empirical
                 x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
 
                 try:
@@ -460,9 +444,9 @@ class OnAxesSubfigure(Subfigure):
 
     def scatter_point_estimates(self, **kwargs):
         print("IN SCATTER")
-        print(self.logl_df)
+        print(self.stacked_df)
 
-        width = self.logl_df.unstack().columns.size
+        width = self.stacked_df.unstack().columns.size
 
         key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
         key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
@@ -472,20 +456,22 @@ class OnAxesSubfigure(Subfigure):
         y_mins = []
         colors = []
         for trial,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
-            #import pdb; pdb.set_trace()
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-            x_min = idx % width + 0.5 + (np.random.rand(1)/2 - 0.25)# the middle of the cell with random fuzzing so there's no overlap
-            y_min = idx // width + 0.5 + (np.random.rand(1)/2 - 0.25)
+            x_min_index = idx % width
+            y_min_index = idx // width
+
+            x_min, y_min = self.index_to_xy(x_min_index, y_min_index)
+
+            x_min = x_min + self.center_offset + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap
+            y_min = y_min + self.center_offset + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale
 
             x_mins.append(x_min)
             y_mins.append(y_min)
 
-            if trial == "empirical":
+            if trial == EMPIRICAL_TRIAL_ID:
                 colors.append("red")
             else:
                 colors.append("blue")
-        
-        #import pdb; pdb.set_trace()
 
         self.ax.scatter(x_mins, y_mins, s=4, c=colors, **kwargs) 
 
@@ -498,9 +484,8 @@ class OnAxesSubfigure(Subfigure):
 class OnMatplotlibAxes(OnAxesSubfigure):
     def __init__(self, ax, interactive):
         OnAxesSubfigure.__init__(self, ax, interactive)
-        #print(self.df)
-        #print(self.df.droplevel(0, axis=1))
-        print("HERE!!!")
+        self.center_offset = 0.0
+
         self.x_grid_values = self.df.columns.to_numpy()
         self.y_grid_values = self.df.index.to_numpy()
         
@@ -514,6 +499,9 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         parameter_coordinates = self.xy_to_parameter_coordinates(event_x, event_y)
 
         return parameter_coordinates
+
+    def index_to_xy(self, x_index, y_index):
+        return self.x_grid_values[x_index], self.y_grid_values[y_index]
 
     def xy_to_parameter_coordinates(self, x, y): # is this reversed in terms of x and y relative to seaborn?
         x = x+1*self.patches_x_scale
@@ -552,6 +540,9 @@ class OnMatplotlibAxes(OnAxesSubfigure):
 
 class OnSeabornAxes(OnAxesSubfigure):
     def __init__(self, ax, interactive):
+        self.center_offset = 0.5
+        self.patches_x_scale = 1.
+        self.patches_y_scale = 1.
         OnAxesSubfigure.__init__(self, ax, interactive)
 
     def click_to_coordinates(self, event_x, event_y):
@@ -561,6 +552,10 @@ class OnSeabornAxes(OnAxesSubfigure):
         parameter_coordinates = self.xy_to_parameter_coordinates(x, y)
 
         return parameter_coordinates
+
+    def index_to_xy(self, x_index, y_index):
+        # an index like "5th row/column" gets passed straight to xy on seaborn axes
+        return float(x_index), float(y_index)
 
     def xy_to_parameter_coordinates(self, x, y):
         key1_value = self.df.index.to_list()[int(y)]
@@ -581,24 +576,29 @@ class OnSeabornAxes(OnAxesSubfigure):
         # refactor this so it calls a draw_patch method of the subfigure
 
         if point.is_baseline:
-            patch = self.ax.add_patch(patches.Ellipse((x+0.5,y+0.5), 1, 1, fill=False, edgecolor=point.color, lw=2))
+            patch = self.ax.add_patch(patches.Ellipse((x+self.center_offset,y+self.center_offset), 1, 1, fill=False, edgecolor=point.color, lw=2))
         else:
-            patch = self.ax.add_patch(patches.Rectangle((x,y), 1, 1, fill=False, edgecolor=point.color, lw=2))
+            patch = self.ax.add_patch(patches.Rectangle((x,y), 2*self.center_offset, 2*self.center_offset, fill=False, edgecolor=point.color, lw=2))
 
         return patch
 
 class ContourPlot(OnMatplotlibAxes):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
-        self.df = df
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
+        self.df = df.unstack()
+        self.stacked_df = df
+
+        #alias of df
+        self.Z = self.df
+
         OnMatplotlibAxes.__init__(self, ax, interactive)
         
-        self.Z = df
+        # more aliases
+
         self.title = title
         self.color_label = color_label
 
         self.scatter_stars = scatter_stars
 
-        
     def draw(self):
         Subfigure.draw(self)
 
@@ -616,20 +616,22 @@ class ContourPlot(OnMatplotlibAxes):
         #cbar.add_lines(contourf)
 
         if self.scatter_stars:
-            key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
-            key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
-            width = self.logl_df.unstack().columns.size
-            x_mins = []
-            y_mins = []
-            for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
-                idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-                x_min = idx % width
-                y_min = idx // width
+            self.scatter_point_estimates()
+
+            #key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
+            #key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
+            #width = self.logl_df.unstack().columns.size
+            #x_mins = []
+            #y_mins = []
+            #for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+            #    idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
+            #    x_min = idx % width
+            #    y_min = idx // width
 
                 # need to convert the x and y into parameter coordinates
 
-                x_mins.append(x_min)
-                y_mins.append(y_min)
+            #    x_mins.append(x_min)
+            #    y_mins.append(y_min)
 
         plt.title(self.title)
         plt.xlabel(self.interactive.key2)
@@ -639,10 +641,11 @@ class ContourPlot(OnMatplotlibAxes):
         self.draw_patches()
 
 class Heatmap(OnSeabornAxes):
-    def __init__(self, ax, interactive, logl_df, title, scatter_stars=True):
+    def __init__(self, ax, interactive, df, title, scatter_stars=True):
         OnSeabornAxes.__init__(self, ax, interactive)
-        self.logl_df = logl_df
-        self.df = logl_df.unstack()
+        self.stacked_df = df
+        self.df = df.unstack()
+
         self.title = title
 
         self.scatter_stars = scatter_stars
@@ -651,7 +654,6 @@ class Heatmap(OnSeabornAxes):
         Subfigure.draw(self)
 
         print("df before heatmap\n", self.df)
-        #import pdb; pdb.set_trace()
         sns.heatmap(self.df, ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
 
         if self.scatter_stars:
@@ -666,31 +668,22 @@ class Heatmap(OnSeabornAxes):
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "two point likelihoods"]
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "trait histograms"]
 #figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]
-figures = ["logl heatmap", "logl contour plot"]#, "average contour plot"]
-axes_shape = (1,2)
+figures = ["logl heatmap", "logl contour plot", "trait histograms", "average contour plot"]#, "average contour plot"]
+axes_shape = (2,2)
 
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-05-13_59/" # hsar=0.3
-#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-11-16_35"
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-11-17_58"
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-15:33"
 
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-12-18_32"
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-17-21:54" #size 500
-#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-00:48/" #size 500
-#path = "./experiments/sus_var-hsar-seed_one-no_importation-05-19-17:08" #size 2000
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-26-18_46"  #hh size 4, size = 300
-#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-27-01_15" #hh size 4, size = 5000
-#path = "./experiments/inf_var-sus_var-hsar030--seed_one-no_importation-05-27-02_34" 
-#path = "./experiments/inf_var-sus_var-hsar050--seed_one-no_importation-05-27-20_34"
-#path = "./experiments/inf_var-sus_var-hsar020--seed_one-no_importation-05-27-21_13"
-#
-
-path = "./experiments/inf_var-hsar-seed_one-no_importation-06-02-14_30/" # many different sizes (fake Jing)
+path = "./experiments/inf_var-hsar-seed_one-no_importation-05-26-18_46/"  #hh size 4, size = 300
+path = "./experiments/inf_var-hsar-seed_one-no_importation-05-27-01_15/" #hh size 4, size = 5000
 empirical_path = False
-
 empirical_path = "./empirical/geneva/"
-#comparison_path = empirical_path + "geneva-sus_var-hsar-seed_one-no_importation-06-03-14_25"
-comparison_path = empirical_path + "geneva-inf_var-hsar-seed_one-no_importation-06-03-12_33"
+#path = empirical_path + "geneva-sus_var-hsar-seed_one-no_importation-06-03-14_25/"
+path = empirical_path + "geneva-inf_var-hsar-seed_one-no_importation-06-08-22_24/"
 
-interactive = InteractiveFigure(path, axes_shape, figures, 0, 0, recompute_logl=False, empirical_path=empirical_path)
+#empirical_path = "./empirical/BneiBrak/"
+#path = empirical_path + "bneibrak-inf_var-hsar-seed_one-no_importation-06-09-13_33/"
+#path = empirical_path + "bneibrak-sus_var-hsar-seed_one-no_importation-06-09-21_54/"
+#path = empirical_path + "bneibrak-sus_var-inf_var-hsar032--seed_one-no_importation-06-10-02_07/"
+#path = empirical_path + "bneibrak-sus_var-inf_var-hsar032--seed_one-no_importation-06-15-15_08/"
+
+interactive = InteractiveFigure(path, axes_shape, figures, 0.2, 0.2, recompute_logl=False, empirical_path=empirical_path)
 

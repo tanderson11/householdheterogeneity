@@ -15,7 +15,7 @@ class Trait:
 
         plt.hist(output, **kwargs)
         plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
-        plt.xlabel("relative magnitude of trait")
+        plt.xlabel("relative magnitude of {0}".format(self.name))
         plt.ylabel("# people")
 
 class ConstantTrait(Trait):

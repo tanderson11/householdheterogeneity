@@ -24,7 +24,8 @@ class Model:
                  importation_rate=0,
                  duration=0,
                  vaccine=None,
-                 vaccination_method=None):
+                 vaccination_method=None,
+                 **forward_simulation_kwargs):
         
         self.name = name
         self.state_length_dist = state_length_dist
@@ -41,6 +42,8 @@ class Model:
         assert (vaccine and vaccination_method) or (not vaccine and not vaccination_method)
         self.vaccine=vaccine
         self.vaccination_method = vaccination_method   
+
+        self.forward_simulation_kwargs = **forward_simulation_kwargs
 
     #def __str__(self):
     #    return "{0}-importation{1}-{2}-{3}".format(name, self.seeding.name, self.importation_rate)
@@ -92,7 +95,7 @@ class Population:
                                columns = ["size","model","infections"])
         self.df["model"] = model.name
 
-    def simulate_population(self, household_beta=0, duration=0):
+    def simulate_population(self, household_beta=0, duration=0, **kwargs):
         if not (household_beta==0 or self.model.household_beta==0):
             print("WARNING: Model has a defined household beta, but another household beta was passed to simulate")
             print(household_beta, self.model.household_beta)
@@ -112,7 +115,7 @@ class Population:
             beta = self.model.household_beta
 
         for p in self.subpops:
-            infections = p.simulate_households(beta, duration)
+            infections = p.simulate_households(beta, duration, **kwargs)
             
             num_infections = np.sum(infections, axis=1)
             self.df.loc[self.df["size"]==p.size, 'infections'] = num_infections
@@ -172,7 +175,7 @@ class SubPopulation:
         self.probability_mat = (self.susceptibility @ self.infectiousness) * adjmat
         #print(self.probability_mat)
         
-    def simulate_households(self, household_beta, duration, silent=False):
+    def simulate_households(self, household_beta, duration, silent=False, **kwargs):
         if not silent:
             #print("RUNNING POP")
             pass
@@ -181,7 +184,7 @@ class SubPopulation:
         if self.model.importation_rate > 0 and initial_state.any():
             print("WARNING: importation rate > 0 while initial infections were seeded. Did you intend this?")
         
-        infections = forward_time(initial_state, self.model.state_length_dist, household_beta, self.probability_mat, self.model.importation_rate * self.susceptibility, duration)
+        infections = forward_time(initial_state, self.model.state_length_dist, household_beta, self.probability_mat, self.model.importation_rate * self.susceptibility, duration, **kwargs)
         
         return infections
     

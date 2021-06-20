@@ -3,8 +3,6 @@ from constants import *
 from settings import GPU
 
 torch.cuda.set_device(GPU)
-GPU = "cuda:0"
-
 
 # Calculating the state lengths quickly with torch
 
@@ -22,11 +20,11 @@ def torch_state_length_sampler(state, entrants): #state is the number of the sta
     return torch.squeeze(1+samples) # Time must be at least 1.
 
 
-def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=0, secondary_infections=True): # CLOSES AROUND DELTA_T
+def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=0, secondary_infections=True, new_rolling=True): # CLOSES AROUND DELTA_T
     debug = False  
     #start = time.time()
 
-    ##  --- Move all numpy data structures on the GPU as pytorch tensors ---
+    ##  --- Move all numpy data structures onto the GPU as pytorch tensors ---
     # a matrix of probabilities with ith row jth column corresponding to the probability that ith individual is infected by the jth individual
     population_matrix = torch.from_numpy(np_probability_matrix).to(GPU) # lacks the beta and delta_t terms
 
@@ -51,7 +49,6 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     if approximate_pmat:
         p_mat = beta_household * delta_t * population_matrix
     else:
-        print("New code testing no approximation pmat")
         p_mat = (1-(1-beta_household)** delta_t) * population_matrix
 
     state_lengths[state == SUSCEPTIBLE_STATE] = np.inf ## inf b/c doesn't change w/o infection
@@ -61,7 +58,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     import_flag = importation_probability.any()
     if import_flag:
         assert(duration>0), "A steady importation rate is defined, but no duration was given."
-    total_introductions = torch.sum((state == EXPOSED_STATE), axis=1) # counting the total number of introductions
+    total_introductions = torch.sum((state == EXPOSED_STATE), axis=1) # counting the total number of introductions, maintained throughout the run
   
     run_flag = True
     while run_flag:
@@ -95,13 +92,13 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             importations = torch.zeros_like(state, dtype = torch.float)
         
         ## infections within the households
-        if inf_mask.any() and sus_mask.any():
+        if inf_mask.any() and sus_mask.any(): # if someone is infectious and someone is susceptible, see if infections happen
             ## permute here works as np.transpose
             print(p_mat)
             probabilities = p_mat * sus_mask * inf_mask.permute(0, 2, 1) # transposing to take what amounts to an outer product in each household
             print(probabilities)
 
-            ## do the same mask and random approach for infections, but within each
+            ## do the same mask and random approach for infections as for importation, but within each
             ## household it's a size-by-size matrix for odds each person infects each other person
             mask = probabilities > 0 
             roll = torch.zeros_like(probabilities, dtype = torch.float)
@@ -128,12 +125,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         state_lengths -= 1
 
         # anyone who is done waiting advances; cut out negative times before update, just in case
-        #state_lengths = np.where(state_lengths <= 0, 0, state_lengths)
         state_lengths[state_lengths <= 0] = 0
-
-        #dstate = np.where(state_lengths == 0, 1, dstate)
-        #print("dstate", dstate)
-        #print("state_lengths", state_lengths)
         dstate[state_lengths == 0] = 1          
 
         # remap state lengths if there were any changes
@@ -141,8 +133,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             new_state = (state+dstate).int()
             
             ## When patients move to a new state, we generate the length that they'll be
-            ## in that state. This is from a gamma distribution, which seems to work differently
-            ## in pytorch. So for now it has to move back to the CPU and numpy.
+            ## in that state.
             if use_torch_state_lengths:
                 for s in range(SUSCEPTIBLE_STATE, REMOVED_STATE):
                     entrants = new_state[torch.logical_and(new_state != state, new_state==s)]
@@ -167,9 +158,9 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
         t += delta_t ## update time
         if duration > 0:
-            run_flag = t <= duration
+            run_flag = (t <= duration)
         else:
-            run_flag = state[state == EXPOSED_STATE].any() or state[state == INFECTIOUS_STATE].any()
+            run_flag = state[state == EXPOSED_STATE].any() or state[state == INFECTIOUS_STATE].any() # keep running if anyone is exposed or infectious
     
     ## send back the the CPU
     return_state = state.cpu().numpy()
