@@ -35,8 +35,6 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     # and this was the old way
     #counted_unstacked = counts.unstack(level=list(range(len(key))))
 
-    import pdb; pdb.set_trace()
-
     counted_unstacked.plot.bar(**kwargs)
     return counted_unstacked
     
