@@ -5,8 +5,8 @@ import constants
 import traits
 import json
 
-from settings import GPU
-if GPU:
+#if GPU:
+if True: # let's stick to torch_forward_simulation and make it work with CPU backups
     from torch_forward_simulation import torch_state_length_sampler, torch_forward_time
     state_length_sampler = torch_state_length_sampler
     forward_time = torch_forward_time
@@ -43,7 +43,7 @@ class Model:
         self.vaccine=vaccine
         self.vaccination_method = vaccination_method   
 
-        self.forward_simulation_kwargs = **forward_simulation_kwargs
+        self.forward_simulation_kwargs = forward_simulation_kwargs
 
     #def __str__(self):
     #    return "{0}-importation{1}-{2}-{3}".format(name, self.seeding.name, self.importation_rate)

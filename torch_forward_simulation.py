@@ -1,16 +1,16 @@
 import torch
 from constants import *
-from settings import GPU
+from settings import device
 
-torch.cuda.set_device(GPU)
+#torch.cuda.set_device(device)
 
 # Calculating the state lengths quickly with torch
 
 # torch's gamma distributions are parametrized with concentration and rate, but the documentation confirms concentration=alpha and rate=beta
-torch_shape_vec = torch.from_numpy(numpy_shape_vec).to(GPU) ## move to GPU
-torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(GPU)
+torch_shape_vec = torch.from_numpy(numpy_shape_vec).to(device) ## move to device
+torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(device)
 
-DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(GPU), torch.tensor([1.0]).to(GPU)) for alpha in torch_shape_vec]
+DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device), torch.tensor([1.0]).to(device)) for alpha in torch_shape_vec]
 
 def torch_state_length_sampler(state, entrants): #state is the number of the state people are entering. entrants is the vector of individuals entering that state
     dist = DISTS[state]
@@ -24,27 +24,27 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     debug = False  
     #start = time.time()
 
-    ##  --- Move all numpy data structures onto the GPU as pytorch tensors ---
+    ##  --- Move all numpy data structures onto the device as pytorch tensors ---
     # a matrix of probabilities with ith row jth column corresponding to the probability that ith individual is infected by the jth individual
-    population_matrix = torch.from_numpy(np_probability_matrix).to(GPU) # lacks the beta and delta_t terms
+    population_matrix = torch.from_numpy(np_probability_matrix).to(device) # lacks the beta and delta_t terms
 
-    state = torch.from_numpy(np_state).to(GPU)     ## move to GPU
+    state = torch.from_numpy(np_state).to(device)     ## move to device
     #print(state.type())
     use_torch_state_lengths = True
     if use_torch_state_lengths:
         state_lengths = torch.zeros_like(state, dtype=torch.double)
         for s in range(SUSCEPTIBLE_STATE, REMOVED_STATE):
             if state_lengths[state==s].nelement() > 0:
-                state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on GPU
+                state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on device
     else:
         np_state_lengths = state_length_sampler(np_state) ## how long spent in each state
-        state_lengths = torch.from_numpy(np_state_lengths).to(GPU)
+        state_lengths = torch.from_numpy(np_state_lengths).to(device)
 
-    importation_probability = torch.from_numpy(np_importation_probability).to(GPU)
+    importation_probability = torch.from_numpy(np_importation_probability).to(device)
 
-    #print("GPU overhead: ", str(time.time() - start))
+    #print("device overhead: ", str(time.time() - start))
 
-    ## --- Everything from here on out should be in the GPU and should be fast ---
+    ## --- Everything from here on out should be in the device and should be fast ---
     approximate_pmat = False
     if approximate_pmat:
         p_mat = beta_household * delta_t * population_matrix
@@ -71,9 +71,13 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             mask = (importation_probability * delta_t * sus_mask > 0) # element wise selection of susceptible individuals
             roll = torch.zeros_like(importation_probability, dtype = torch.float)
 
-            ## torch.rand can't work on GPU without existing cuda tensor
+            ## torch.rand can't work on device without existing cuda tensor
             roll_shape = torch.Size((len(roll[mask]),))
-            random_tensor = torch.cuda.FloatTensor(roll_shape)
+
+            if torch.cuda.is_available():
+                random_tensor = torch.cuda.FloatTensor(roll_shape)
+            else:
+                random_tensor = torch.FloatTensor(roll_shape)
             torch.rand(roll_shape, out=random_tensor) ## I'm 99% sure torch.rand is going to be the same as numpy TK
 
             ## For sus people, the roll is used to see if they get infected
@@ -94,9 +98,9 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         ## infections within the households
         if inf_mask.any() and sus_mask.any(): # if someone is infectious and someone is susceptible, see if infections happen
             ## permute here works as np.transpose
-            print(p_mat)
+            #print(p_mat)
             probabilities = p_mat * sus_mask * inf_mask.permute(0, 2, 1) # transposing to take what amounts to an outer product in each household
-            print(probabilities)
+            #print(probabilities)
 
             ## do the same mask and random approach for infections as for importation, but within each
             ## household it's a size-by-size matrix for odds each person infects each other person
@@ -105,7 +109,12 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
             ## Again, this is just the faster version of torch.rand
             roll_shape = torch.Size((len(roll[mask]),))
-            random_tensor = torch.cuda.FloatTensor(roll_shape)
+
+            if torch.cuda.is_available():
+                random_tensor = torch.cuda.FloatTensor(roll_shape)
+            else:
+                random_tensor = torch.FloatTensor(roll_shape)
+
             torch.rand(roll_shape, out=random_tensor)
 
             roll[mask] = random_tensor

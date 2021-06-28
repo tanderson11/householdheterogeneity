@@ -284,10 +284,12 @@ def subfigure_factory(plot_type, ax, interactive):
     return subfigure
 
 class Subfigure:
-    def __init__(self, ax, interactive):
+    def __init__(self, ax, interactive, **kwargs):
         self.ax = ax
         self.interactive = interactive
         self.has_patches = False
+
+        self.kwargs = kwargs
 
     def draw(self):
         plt.sca(self.ax)
@@ -604,7 +606,7 @@ class ContourPlot(OnMatplotlibAxes):
 
         #X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
         X,Y = np.meshgrid(self.Z.columns, self.Z.index)
-        contourf = plt.contourf(X, Y, self.Z)
+        contourf = plt.contourf(X, Y, self.Z, **self.kwargs)
 
         self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
 
@@ -617,21 +619,6 @@ class ContourPlot(OnMatplotlibAxes):
 
         if self.scatter_stars:
             self.scatter_point_estimates()
-
-            #key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
-            #key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
-            #width = self.logl_df.unstack().columns.size
-            #x_mins = []
-            #y_mins = []
-            #for _,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
-            #    idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
-            #    x_min = idx % width
-            #    y_min = idx // width
-
-                # need to convert the x and y into parameter coordinates
-
-            #    x_mins.append(x_min)
-            #    y_mins.append(y_min)
 
         plt.title(self.title)
         plt.xlabel(self.interactive.key2)
@@ -667,17 +654,20 @@ class Heatmap(OnSeabornAxes):
 #fig, ax = plt.subplots(2,2)
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "two point likelihoods"]
 #figures = ["logl heatmap", "infection histograms", "average heatmap", "trait histograms"]
-#figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]
-figures = ["logl heatmap", "logl contour plot", "trait histograms", "average contour plot"]#, "average contour plot"]
+figures = ["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]
+#figures = ["logl heatmap", "logl contour plot", "trait histograms", "average contour plot"]#, "average contour plot"]
 axes_shape = (2,2)
 
+path = "./experiments/synthetic-iguana-inf_var-sus_var-hsar032--seed_one-no_importation-06-22-12_10/"
 
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-26-18_46/"  #hh size 4, size = 300
-path = "./experiments/inf_var-hsar-seed_one-no_importation-05-27-01_15/" #hh size 4, size = 5000
+#path = "./experiments/synthetic-iguana-sus_var-hsar-seed_one-no_importation-06-22-01_22/"
+#path = "./experiments/synthetic-iguana-inf_var-hsar-seed_one-no_importation-06-22-01_52/"
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-26-18_46/"  #hh size 4, size = 300
+#path = "./experiments/inf_var-hsar-seed_one-no_importation-05-27-01_15/" #hh size 4, size = 5000
 empirical_path = False
-empirical_path = "./empirical/geneva/"
+#empirical_path = "./empirical/geneva/"
 #path = empirical_path + "geneva-sus_var-hsar-seed_one-no_importation-06-03-14_25/"
-path = empirical_path + "geneva-inf_var-hsar-seed_one-no_importation-06-08-22_24/"
+#path = empirical_path + "geneva-inf_var-hsar-seed_one-no_importation-06-08-22_24/"
 
 #empirical_path = "./empirical/BneiBrak/"
 #path = empirical_path + "bneibrak-inf_var-hsar-seed_one-no_importation-06-09-13_33/"
