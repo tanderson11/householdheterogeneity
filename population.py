@@ -4,6 +4,7 @@ import utilities
 import constants
 import traits
 import json
+import scipy.linalg
 
 #if GPU:
 if True: # let's stick to torch_forward_simulation and make it work with CPU backups
@@ -12,36 +13,35 @@ if True: # let's stick to torch_forward_simulation and make it work with CPU bac
     forward_time = torch_forward_time
 else:
     from forward_simulation import state_length_sampler, forward_time
-    
 
 class Model:
     def __init__(self, name,
                  state_length_dist=state_length_sampler,
                  inf_dist=traits.ConstantTrait("inf"),
                  sus_dist=traits.ConstantTrait("sus"),
-                 initial_seeding=utilities.seed_one_by_susceptibility,
-                 household_beta=0,
-                 importation_rate=0,
-                 duration=0,
+                 initial_seeding='seed_one_by_susceptibility',
+                 household_beta=None,
+                 importation_rate=0.,
+                 duration=None,
                  vaccine=None,
                  vaccination_method=None,
                  **forward_simulation_kwargs):
         
         self.name = name
         self.state_length_dist = state_length_dist
+        self.sus_dist = sus_dist
+        self.inf_dist = inf_dist
 
-        self.seeding = initial_seeding
+        self.initial_seeding = initial_seeding
+        self.household_beta = household_beta
+
+        assert (importation_rate and duration) or (not importation_rate and not duration)
         self.importation_rate = importation_rate
         self.duration = duration
 
-        self.household_beta = household_beta
-
-        self.sus_dist = sus_dist
-        self.inf_dist = inf_dist
-        
         assert (vaccine and vaccination_method) or (not vaccine and not vaccination_method)
-        self.vaccine=vaccine
-        self.vaccination_method = vaccination_method   
+        self.vaccine = vaccine
+        self.vaccination_method = vaccination_method
 
         self.forward_simulation_kwargs = forward_simulation_kwargs
 
@@ -61,29 +61,123 @@ class Model:
         return self_str
         
     def run_trials(self, trials, sizes, **kwargs):
-        
-        expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations and easier implementation
+        expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
 
         pop = Population(self, expanded_sizes)
-        pop.simulate_population(**kwargs)
-        
-        #trialnums = [i for t in range(trials) for i in range(size_of_one_trial)]
+        pop.simulate_population(**kwargs, **self.forward_simulation_kwargs)
         
         dfs = []
         grouped = pop.df.groupby("size")
         for size, group in grouped:
             count = sizes[size]
             trialnums = [t for t in range(trials) for i in range(count)]
-            #print(size, count, trialnums)
             group["trialnum"] = trialnums
-            #print(group)
             dfs.append(group)
-        #print(pop.df)
-        return pd.concat(dfs) #pop.df
+        return pd.concat(dfs)
 
     def sample_hsar(self, sizes, household_beta=None, ignore_traits=True):
         pop = Population(self, sizes)
         return pop.sample_hsar(self.household_beta, ignore_traits=ignore_traits)
+
+class NewModel(Model):
+    def run_trials(self, trials, sizes, **kwargs):
+        expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
+
+        pop = self.__class__.NewPopulation(self, expanded_sizes)
+        pop.simulate_population(**kwargs, **self.forward_simulation_kwargs)
+        
+        dfs = []
+        grouped = pop.df.groupby("size")
+        for size, group in grouped:
+            count = sizes[size]
+            trialnums = [t for t in range(trials) for i in range(count)]
+            group["trialnum"] = trialnums
+            dfs.append(group)
+        return pd.concat(dfs)
+
+    class NewPopulation:
+        def __init__(self, model, household_sizes):
+            self.model = model
+            unpacked_sizes = [[size]*number for size, number in household_sizes.items()]
+            flattened_unpacked_sizes = [x for l in unpacked_sizes for x in l]
+
+            self.df = pd.DataFrame({"size":flattened_unpacked_sizes, "model":self.model},
+                columns = ["size","model","infections"])
+
+            total_households = len(self.df)
+            max_size = self.df["size"].max()
+
+            self.is_occupied = np.array([[1. if i < hh_size else 0. for i in range(max_size)] for hh_size in self.df["size"]]) # 1. if individual exists else 0.
+            self.susceptibility = np.expand_dims(model.sus_dist(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
+            self.infectiousness = np.transpose(np.expand_dims(model.inf_dist(self.is_occupied), axis=2), axes=(0,2,1))
+
+            # not adjacent to yourself
+            nd_eyes = np.stack([np.eye(max_size,max_size) for i in range(total_households)]) # we don't worry about small households here because it comes out in a wash later
+            adjmat = 1 - nd_eyes # this is used so that an individual doesn't 'infect' themself
+            
+            # reintroduce vaccines TK
+            #import pdb; pdb.set_trace()
+            self.probability_mat = (self.susceptibility @ self.infectiousness) * adjmat
+            #print(self.probability_mat)
+
+        def seed_one_by_susceptibility(self):
+            n_hh = len(self.df["size"])
+            initial_state = self.is_occupied * constants.SUSCEPTIBLE_STATE
+            
+            sus_p = [np.squeeze(self.susceptibility[i,:,:]) for i in range(n_hh)]
+            choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p] # susceptibility/total_sus chance of getting seed --> means this works with small households
+            
+            #import pdb; pdb.set_trace()
+            choices = np.array(choices).reshape(n_hh)
+
+            initial_state[np.arange(n_hh), choices] = constants.EXPOSED_STATE
+            return initial_state
+
+        def seed_zero(self):
+            initial_state = self.is_occupied * constants.SUSCEPTIBLE_STATE
+            return initial_state
+
+        def simulate_population(self, **kwargs):
+            if self.model.initial_seeding == 'seed_one_by_susceptibility':
+                initial_state = self.seed_one_by_susceptibility()
+            elif self.model.initial_seeding == 'seed_zero':
+                initial_state = self.seed_zero()
+            else:
+                raise(ValueError('model had unknown seeding {self.model.seeding}'))
+
+            initial_state = np.expand_dims(initial_state, axis=2)
+
+            if self.model.importation_rate > 0 and initial_state.any():
+                print("WARNING: importation rate is defined while initial infections were seeded. Did you intend this?")
+            
+            importation_probability = self.model.importation_rate * self.susceptibility
+
+            #import pdb; pdb.set_trace()
+            # calling our simulator
+            infections = forward_time(initial_state, self.model.state_length_dist, self.model.household_beta, self.probability_mat, importation_probability, self.model.duration, **kwargs)
+                            
+            num_infections = np.sum(infections, axis=1)
+            self.df["infections"] = num_infections
+            assert (self.df["infections"] <= self.df["size"]).all(), "Saw more infections than the size of the household"
+
+            if self.model.vaccine:
+                self.df["num vaccinated"] = np.sum(self.inoculations, axis=1)
+                self.df["vaccinated infected"] = np.sum(infections * (self.inoculations == 1 & self.is_occupied), axis=1)     
+
+                self.df["unvaccinated infected"] = self.df["infections"] - self.df["vaccinated infected"]
+                self.df["num unvaccinated"] = self.df["size"] - self.df["num vaccinated"]
+                
+            return self.df["infections"]
+
+    def __repr__(self):
+        labels = ["household_beta", "seeding", "duration", "importation rate", "susceptibility", "infectiousness"]
+        fields = ["{0:.3f}".format(self.household_beta), self.initial_seeding, self.duration, "{0:.3f}".format(self.importation_rate), self.sus_dist, self.inf_dist]
+        self_str = "Model named {0} with:\n".format(self.name)
+        for label,field in zip(labels, fields):
+            self_str += "\t{0:18} = {1}\n".format(label, field)  
+
+        return self_str
+
 
 class Population:
     def __init__(self, model, household_sizes):
@@ -172,7 +266,7 @@ class SubPopulation:
 
             #self.probability_mat = self.probability_mat * vaccination_pmat # element-wise product to combine the parameters defined by vaccination and those defined otherwise
         
-        self.probability_mat = (self.susceptibility @ self.infectiousness) * adjmat
+        #self.probability_mat = (self.susceptibility @ self.infectiousness) * adjmat
         #print(self.probability_mat)
         
     def simulate_households(self, household_beta, duration, silent=False, **kwargs):
@@ -211,8 +305,6 @@ class SubPopulation:
             else:
                 p_mat = household_beta * delta_t * self.probability_mat
 
-            
-
             print("Seeding by susceptibility")
             one_infection_state =  seed_one_by_susceptibility(self.size, self.count, self.susceptibility)
 
@@ -239,18 +331,3 @@ class SubPopulation:
             print("summed probs", np.sum(probabilities, axis=(1,2)))
             print("probability * time", np.sum(probabilities, axis=(1,2)) * times)
         return (np.sum(probabilities, axis=(1,2)) * times)
-
-    def sample_r0(self, household_beta, length_dist=False): # closed around delta_t
-        # assumes infection is introduced uniformly at random among household members
-        
-        # dividing by size to account for the fact that summing over this matrix effectively introduces size-many infections
-        daily_probabilities = (household_beta / self.size) * self.probability_mat
-        #print(daily_probabilities, daily_probabilities.shape)
-        if not length_dist:
-            time = self.model.state_length_dist((np.ones((self.size, self.count)) * constants.INFECTIOUS_STATE).astype('int32')) # sample an infection length for each individual to mitigate variance
-                
-        else:     
-            time = length_dist((np.ones(self.size) * constants.INFECTIOUS_STATE).astype('int32'))
-        print(daily_probabilities.shape)
-        #print(np.average(time, axis=1), delta_t, np.sum(daily_probabilities, axis=(1,2)))
-        return np.average(time, axis=0) * delta_t * np.sum(daily_probabilities, axis=(1,2))

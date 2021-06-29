@@ -166,7 +166,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             state = new_state
 
         t += delta_t ## update time
-        if duration > 0:
+        if duration is not None:
             run_flag = (t <= duration)
         else:
             run_flag = state[state == EXPOSED_STATE].any() or state[state == INFECTIOUS_STATE].any() # keep running if anyone is exposed or infectious
