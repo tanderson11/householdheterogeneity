@@ -1,5 +1,6 @@
 import torch
-from constants import *
+import constants
+import numpy as np
 from settings import device
 
 #torch.cuda.set_device(device)
@@ -7,15 +8,15 @@ from settings import device
 # Calculating the state lengths quickly with torch
 
 # torch's gamma distributions are parametrized with concentration and rate, but the documentation confirms concentration=alpha and rate=beta
-torch_shape_vec = torch.from_numpy(numpy_shape_vec).to(device) ## move to device
-torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(device)
+torch_shape_vec = torch.from_numpy(constants.numpy_shape_vec).to(device) ## move to device
+torch_scale_vec = torch.from_numpy(constants.numpy_scale_vec).to(device)
 
 DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device), torch.tensor([1.0]).to(device)) for alpha in torch_shape_vec]
 
-def torch_state_length_sampler(state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
-    dist = DISTS[state]
+def torch_state_length_sampler(new_state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
+    dist = DISTS[new_state]
     samples = dist.sample(entrants.shape)
-    beta = delta_t/torch_scale_vec[state]
+    beta = constants.delta_t/torch_scale_vec[new_state]
     samples = torch.round(samples / beta)
     return torch.squeeze(1+samples) # Time must be at least 1.
 
@@ -32,7 +33,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     use_torch_state_lengths = True
     if use_torch_state_lengths:
         state_lengths = torch.zeros_like(state, dtype=torch.double)
-        for _,s in constants.STATE.__members__.items():
+        for s in constants.STATE:
             if state_lengths[state==s].nelement() > 0:
                 state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on device
     else:
@@ -46,9 +47,9 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     ## --- Everything from here on out should be in the device and should be fast ---
     approximate_pmat = False
     if approximate_pmat:
-        p_mat = beta_household * delta_t * population_matrix
+        p_mat = beta_household * constants.delta_t * population_matrix
     else:
-        p_mat = (1-(1-beta_household)** delta_t) * population_matrix
+        p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
 
     state_lengths[state == constants.STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == constants.STATE.removed]     = np.inf     ## inf b/c doesn't change from removed
@@ -69,7 +70,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         
         ## importing from outside the households
         if import_flag and sus_mask.any(): # if importation is defined and at least one person is in a susceptible state, see if imports happen
-            mask = (importation_probability * delta_t * sus_mask > 0) # element wise selection of susceptible individuals
+            mask = (importation_probability * constants.delta_t * sus_mask > 0) # element wise selection of susceptible individuals
             roll = torch.zeros_like(importation_probability, dtype = torch.float)
 
             ## torch.rand can't work on device without existing cuda tensor
@@ -85,7 +86,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             roll[mask] = random_tensor
 
             ## if random value is less than susceptability per delta_t, in susceptible individuals, importation occurs
-            importations = torch.where(roll < importation_probability * delta_t * sus_mask, 1, 0)
+            importations = torch.where(roll < importation_probability * constants.delta_t * sus_mask, 1, 0)
             total_introductions += torch.sum(importations, axis=1) # I think this is per household
             
             if debug and (importations > 0).any():
@@ -166,7 +167,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
             state = new_state
 
-        t += delta_t ## update time
+        t += constants.delta_t ## update time
         if duration is not None:
             run_flag = (t <= duration)
         else:

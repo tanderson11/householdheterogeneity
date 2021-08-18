@@ -2,11 +2,11 @@
 import numpy as np
 import enum
 
-class STATE(enum.Enum):
-      susceptible: 0
-      exposed: 1
-      infectious: 2
-      removed: 3
+class STATE(enum.IntEnum):
+      susceptible = 0
+      exposed = 1
+      infectious = 2
+      removed = 3
 
 # Model parameter values
 delta_t = 0.1
