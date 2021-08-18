@@ -1,10 +1,12 @@
 # Constants used to refer to states
 import numpy as np
+import enum
 
-SUSCEPTIBLE_STATE = 0
-EXPOSED_STATE = 1
-INFECTIOUS_STATE = 2
-REMOVED_STATE = 3
+class STATE(enum.Enum):
+      susceptible: 0
+      exposed: 1
+      infectious: 2
+      removed: 3
 
 # Model parameter values
 delta_t = 0.1
@@ -27,7 +29,7 @@ scale_vec=(std_vec**2)/mean_vec # This will contain scale values for each state
 # beta is given in accordance with the line beta = delta_t/torch_scale_vec[state], so having this fraction makes sense
 
 # some states have an infinite duration 
-inf_waiting_states = [SUSCEPTIBLE_STATE, REMOVED_STATE]
+inf_waiting_states = [STATE.susceptible, STATE.removed]
 shape_vec[inf_waiting_states] = np.inf
 scale_vec[inf_waiting_states] = np.inf
 mean_vec[inf_waiting_states] = np.inf
