@@ -20,7 +20,7 @@ def torch_state_length_sampler(state, entrants): #state is the number of the sta
     return torch.squeeze(1+samples) # Time must be at least 1.
 
 
-def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=0, secondary_infections=True, new_rolling=True): # CLOSES AROUND DELTA_T
+def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True, new_rolling=True): # CLOSES AROUND DELTA_T
     debug = False  
     #start = time.time()
 
@@ -60,6 +60,8 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         assert(duration>0), "A steady importation rate is defined, but no duration was given."
     total_introductions = torch.sum((state == EXPOSED_STATE), axis=1) # counting the total number of introductions, maintained throughout the run
   
+    assert duration != 0, "Duration is 0. when it should be None to represent an untimed run."
+
     run_flag = True
     while run_flag:
         
