@@ -3,8 +3,6 @@ import constants
 import numpy as np
 from settings import device
 
-#torch.cuda.set_device(device)
-
 # Calculating the state lengths quickly with torch
 
 # torch's gamma distributions are parametrized with concentration and rate, but the documentation confirms concentration=alpha and rate=beta
@@ -20,7 +18,7 @@ def torch_state_length_sampler(new_state, entrants): #state is the constant of t
     samples = torch.round(samples / beta)
     return torch.squeeze(1+samples) # Time must be at least 1.
 
-def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True, new_rolling=True): # CLOSES AROUND DELTA_T
+def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  
     #start = time.time()
 
@@ -45,11 +43,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #print("device overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the device and should be fast ---
-    approximate_pmat = False
-    if approximate_pmat:
-        p_mat = beta_household * constants.delta_t * population_matrix
-    else:
-        p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
+    p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
 
     state_lengths[state == constants.STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == constants.STATE.removed]     = np.inf     ## inf b/c doesn't change from removed
@@ -173,7 +167,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         else:
             run_flag = state[state == constants.STATE.exposed].any() or state[state == constants.STATE.infectious].any() # keep running if anyone is exposed or infectious
     
-    ## send back the the CPU
+    ## send back to the CPU
     return_state = state.cpu().numpy()
 
     #end = time.time()

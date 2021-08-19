@@ -5,6 +5,12 @@
 # Private git token
 git_token.py
 
+# screenshots/renderings
+*.png
+
+# custom built packages
+*.whl
+
 # ipynb files (because we'll use the colab git interface)
 *.ipynb
 

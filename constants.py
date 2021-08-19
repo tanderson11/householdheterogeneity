@@ -15,13 +15,14 @@ delta_t = 0.1
 LatentPeriod=4  #Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
 DurMildInf=7 #Duration of mild infections, days (Equal to infectious period)
 
-### Standard deviations (not used if exponential waiting times)
 std_LatentPeriod=4  #Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
 std_DurMildInf=4 #Duration of mild infections, days
 
 # Get gamma distribution parameters
+
 mean_vec = np.array(
       [1., LatentPeriod, DurMildInf, 1.])
+### Standard deviations (not used if exponential waiting times)
 std_vec=np.array(
       [1., std_LatentPeriod, std_DurMildInf, 1.])
 shape_vec=(mean_vec/std_vec)**2# This will contain shape values for each state
