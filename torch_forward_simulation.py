@@ -120,6 +120,15 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
             ## dstate being change in state, so 1 if someone progresses
             dstate = (torch.sum(hits, axis=2, keepdims=True) >= 1)
+
+            if secondary_infections == False:
+                #import pdb; pdb.set_trace()
+                # send people directly to removed if we're trying to view the model without secondary infections
+                dstate = dstate.int()
+                dstate[dstate != 0] = constants.STATE.removed - constants.STATE.susceptible
+                #print("modifying dstate with no secondary_infections")
+                #print(dstate.dtype)
+                #print("new dstate.max()", dstate.max())
         else:
             dstate = torch.zeros_like(state)
 
@@ -135,12 +144,13 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
         # remap state lengths if there were any changes
         if (dstate != 0).any():
+            #import pdb; pdb.set_trace()
             new_state = (state+dstate).int()
             
             ## When patients move to a new state, we generate the length that they'll be
             ## in that state.
             if use_torch_state_lengths:
-                for s in range(constants.STATE.susceptible, constants.STATE.removed):
+                for s in constants.STATE:
                     entrants = new_state[torch.logical_and(new_state != state, new_state==s)]
                     #print("entrants", entrants)
                     #print("state", state)
