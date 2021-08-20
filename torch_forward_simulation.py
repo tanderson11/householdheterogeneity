@@ -20,6 +20,7 @@ def torch_state_length_sampler(new_state, entrants): #state is the constant of t
 
 def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  
+
     #start = time.time()
 
     ##  --- Move all numpy data structures onto the device as pytorch tensors ---
