@@ -3,9 +3,6 @@ import numpy as np
 import abc
 
 class Trait(abc.ABC):
-    def __init__(self, name):
-        self.name = name
-
     def __call__(self, occupants):
         return self.draw_from_distribution(occupants)
     
@@ -22,20 +19,18 @@ class Trait(abc.ABC):
     @abc.abstractmethod
     def draw_from_distribution(self, occupants):
         '''Takes:
-                sizes:pd.Series that contains the size of each household
-                max_size:int that contains the max_size of a household.
+                is_occupied:pd.DataFrame a table of households where values are masked
+                True=individual exists and False=individual not present in household
             Returns:
-                np.array of households 0'd out at the end of they are smaller than max_size
-                with the trait values for individuals in hosuehold.
+                np.array of households with the trait values for individuals
+                if that individual is present and 0s otherwise to pad the size to max_size
         '''
         pass
 
 class ConstantTrait(Trait):
-    def __init__(self, name, trait_value=1.0):
-        super().__init__(name)
-        self.trait_type="constant"
+    def __init__(self, trait_value=1.0):
+        super().__init__()
         self.trait_value = trait_value
-        #self.distribution = lambda shape: np.ones(shape) * trait_value
 
     def draw_from_distribution(self, is_occupied):
         return is_occupied * self.trait_value
@@ -44,12 +39,11 @@ class ConstantTrait(Trait):
         return "Constant trait named {0} with value {1:.2f}".format(self.name, self.trait_value)
 
 class GammaTrait(Trait):
-    def __init__(self, name, mean, variance):
+    def __init__(self, mean, variance):
         # copy fields
-        super().__init__(name)
+        super().__init__()
         self.mean = mean
         self.variance = variance
-        self.trait_type="gamma"
 
     def draw_from_distribution(self, is_occupied):
         if self.variance == 0:

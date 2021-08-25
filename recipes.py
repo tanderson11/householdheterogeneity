@@ -26,12 +26,12 @@ class Model(NamedTuple):
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
 
-    def run_trials(self, household_beta, trials=1, population=None, sizes=None, sus=traits.ConstantTrait("sus"), inf=traits.ConstantTrait("inf")):
+    def run_trials(self, household_beta, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait()):
         #import pdb; pdb.set_trace()
         if population is None:
             assert sizes is not None
             expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
-            population = Population(expanded_sizes, sus, inf)
+            population = PopulationStructure(expanded_sizes, sus, inf)
 
         df = population.simulate_population(household_beta, *self)
         
@@ -44,38 +44,20 @@ class Model(NamedTuple):
             dfs.append(group)
         return pd.concat(dfs)
 
-class Population:
-    def __init__(self, household_sizes, susceptibility=traits.ConstantTrait("sus"), infectivity=traits.ConstantTrait("inf")):
-        unpacked_sizes = [[size]*number for size, number in household_sizes.items()]
-        flattened_unpacked_sizes = [x for l in unpacked_sizes for x in l]
-
-        self.df = pd.DataFrame({"size":flattened_unpacked_sizes},
-            columns = ["size"])
-
-        total_households = len(self.df)
-        max_size = self.df["size"].max()
-
-        # the giant numpy array of individuals holds 'households' of identical size but we use is_occupied to enforce the actual strcuture
-        self.is_occupied = np.array([[1. if i < hh_size else 0. for i in range(max_size)] for hh_size in self.df["size"]]) # 1. if individual exists else 0.
-        self.susceptibility = np.expand_dims(susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
-        self.infectiousness = np.transpose(np.expand_dims(infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
-
-        # not adjacent to yourself
-        nd_eyes = np.stack([np.eye(max_size,max_size) for i in range(total_households)]) # we don't worry about small households here because it comes out in a wash later
-        adjmat = 1 - nd_eyes # this is used so that an individual doesn't 'infect' themself
-        
-        # reintroduce vaccines TK
-
-        self.connectivity_matrix = (self.susceptibility @ self.infectiousness) * adjmat
+class Population(NamedTuple):
+    is_occupied: pd.DataFrame
+    sus: np.ndarray
+    inf: np.ndarray
+    connectivity_matrix: np.ndarray
 
     def seed_one_by_susceptibility(self):
-        n_hh = len(self.df["size"])
+        n_hh = len(self.is_occupied)
         initial_state = self.is_occupied * constants.STATE.susceptible
         
-        sus_p = [np.squeeze(self.susceptibility[i,:,:]) for i in range(n_hh)]
-        choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p] # susceptibility/total_sus chance of getting seed --> means this works with small households
+        sus_p = [np.squeeze(self.sus[i,:,:]) for i in range(n_hh)]
+        # susceptibility/total_sus chance of getting the seeded infection
+        choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p]
         
-        #import pdb; pdb.set_trace()
         choices = np.array(choices).reshape(n_hh)
 
         initial_state[np.arange(n_hh), choices] = constants.STATE.exposed
@@ -85,25 +67,65 @@ class Population:
         initial_state = self.is_occupied * constants.STATE.susceptible
         return initial_state
 
+class PopulationStructure:
+    def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
+        assert isinstance(household_sizes, dict)
+        self.household_sizes_dict = household_sizes
+        assert isinstance(susceptibility, traits.Trait)
+        self.susceptibility = susceptibility
+        assert isinstance(infectivity, traits.Trait)
+        self.infectivity = infectivity
+
+        unpacked_sizes = [[size]*number for size, number in household_sizes.items()]
+        flattened_unpacked_sizes = [x for l in unpacked_sizes for x in l]
+        self.sizes_table = pd.Series({"size":flattened_unpacked_sizes})
+
+        self.max_size = self.sizes_table.max()
+        self.is_occupied = np.array([[1. if i < hh_size else 0. for i in range(self.max_size)] for hh_size in self.sizes_table]) # 1. if individual exists else 0.
+        
+        self.total_households = len(self.sizes_table)
+
+        self._nd_eyes = np.stack([np.eye(self.max_size,self.max_size) for i in range(self.total_households)]) # we don't worry about small households here because it comes out in a wash later
+        self._adjmat = 1 - nd_eyes # this is used so that an individual doesn't 'infect' themself
+
+    def make_population(self):
+        # creatures a real draw from the trait distributions to represent
+        # one instance of the abstract structure
+        sus = np.expand_dims(self.susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
+        inf = np.transpose(np.expand_dims(self.infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
+
+        connectivity_matrix = (sus @ inf) * self._adjmat
+
+        return Population(self.is_occupied, sus, inf, connectivity_matrix)
+
     def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, **kwargs):
+        ###################
+        # Make population #
+        ###################
+
+        pop = self.make_population()
+
+        ################################
+        # Process and verify arguments #
+        ################################
+
         initial_seeding = InitialSeedingConfig(initial_seeding)
 
         if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
-            initial_state = self.seed_one_by_susceptibility()
+            initial_state = pop.seed_one_by_susceptibility()
         elif initial_seeding == InitialSeedingConfig.seed_none:
-            initial_state = self.seed_none()
+            initial_state = pop.seed_none()
         else:
             raise Exception(f"unimplimented initial seeding name {initial_seeding}")
 
         initial_state = np.expand_dims(initial_state, axis=2)
 
         if importation is None:
-            importation_probability = 0. * self.susceptibility
+            importation_probability = 0. * pop.sus
         else:
             if initial_state.any():
                 print("WARNING: importation rate is defined while initial infections were seeded. Did you intend this?")
-        
-            importation_probability = importation.importation_rate * self.susceptibility
+            importation_probability = importation.importation_rate * pop.sus
 
         # select the appropriate function for state lengths based on config str:
         state_length_config = StateLengthConfig(state_lengths)
@@ -115,15 +137,13 @@ class Population:
         else:
             raise Exception('unimplemented')
 
-        # calling our simulator
-        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, self.connectivity_matrix, importation_probability, **kwargs)
+        ############
+        # Simulate #
+        ############
+
+        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.connectivity_matrix, importation_probability, **kwargs)
                         
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
-        #self.df["infections"] = num_infections
-        #assert (self.df["infections"] <= self.df["size"]).all(), "Saw more infections than the size of the household"
-        #import pdb; pdb.set_trace()
-        return pd.concat([self.df, pd.Series(num_infections)], axis=1)
 
-#x = Model()
-#x.run_trials(0.05, sizes={10:1000})
+        return pd.concat([self.df, pd.Series(num_infections)], axis=1)
