@@ -78,15 +78,16 @@ class PopulationStructure:
 
         unpacked_sizes = [[size]*number for size, number in household_sizes.items()]
         flattened_unpacked_sizes = [x for l in unpacked_sizes for x in l]
-        self.sizes_table = pd.Series({"size":flattened_unpacked_sizes})
+        self.sizes_table = pd.Series(flattened_unpacked_sizes, name="size")
 
         self.max_size = self.sizes_table.max()
+        #import pdb; pdb.set_trace()
         self.is_occupied = np.array([[1. if i < hh_size else 0. for i in range(self.max_size)] for hh_size in self.sizes_table]) # 1. if individual exists else 0.
         
         self.total_households = len(self.sizes_table)
 
         self._nd_eyes = np.stack([np.eye(self.max_size,self.max_size) for i in range(self.total_households)]) # we don't worry about small households here because it comes out in a wash later
-        self._adjmat = 1 - nd_eyes # this is used so that an individual doesn't 'infect' themself
+        self._adjmat = 1 - self._nd_eyes # this is used so that an individual doesn't 'infect' themself
 
     def make_population(self):
         # creatures a real draw from the trait distributions to represent
@@ -98,7 +99,7 @@ class PopulationStructure:
 
         return Population(self.is_occupied, sus, inf, connectivity_matrix)
 
-    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, **kwargs):
+    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, secondary_infections=True):
         ###################
         # Make population #
         ###################
@@ -141,9 +142,13 @@ class PopulationStructure:
         # Simulate #
         ############
 
-        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.connectivity_matrix, importation_probability, **kwargs)
+        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.connectivity_matrix, importation_probability, secondary_infections=secondary_infections)
                         
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
 
-        return pd.concat([self.df, pd.Series(num_infections)], axis=1)
+        return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
+
+#x = Model()
+#print(x.run_trials(0.05, sizes={5:1000}))
+
