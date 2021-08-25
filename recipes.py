@@ -27,6 +27,7 @@ class Model(NamedTuple):
     secondary_infections: bool = True # for debugging / testing
 
     def run_trials(self, household_beta, trials=1, population=None, sizes=None, sus=traits.ConstantTrait("sus"), inf=traits.ConstantTrait("inf")):
+        #import pdb; pdb.set_trace()
         if population is None:
             assert sizes is not None
             expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
@@ -44,7 +45,7 @@ class Model(NamedTuple):
         return pd.concat(dfs)
 
 class Population:
-    def __init__(self, household_sizes, susceptibility, infectivity):
+    def __init__(self, household_sizes, susceptibility=traits.ConstantTrait("sus"), infectivity=traits.ConstantTrait("inf")):
         unpacked_sizes = [[size]*number for size, number in household_sizes.items()]
         flattened_unpacked_sizes = [x for l in unpacked_sizes for x in l]
 
@@ -84,7 +85,7 @@ class Population:
         initial_state = self.is_occupied * constants.STATE.susceptible
         return initial_state
 
-    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, secondary_infections=True):
+    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, **kwargs):
         initial_seeding = InitialSeedingConfig(initial_seeding)
 
         if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
@@ -115,14 +116,14 @@ class Population:
             raise Exception('unimplemented')
 
         # calling our simulator
-        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, self.connectivity_matrix, importation_probability)
+        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, self.connectivity_matrix, importation_probability, **kwargs)
                         
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
         #self.df["infections"] = num_infections
         #assert (self.df["infections"] <= self.df["size"]).all(), "Saw more infections than the size of the household"
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         return pd.concat([self.df, pd.Series(num_infections)], axis=1)
 
-x = Model()
-x.run_trials(0.05, sizes={10:1000})
+#x = Model()
+#x.run_trials(0.05, sizes={10:1000})
