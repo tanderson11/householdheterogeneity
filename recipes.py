@@ -45,7 +45,7 @@ class Model(NamedTuple):
         return pd.concat(dfs)
 
 class Population(NamedTuple):
-    is_occupied: pd.DataFrame
+    is_occupied: np.ndarray
     sus: np.ndarray
     inf: np.ndarray
     connectivity_matrix: np.ndarray
@@ -56,6 +56,8 @@ class Population(NamedTuple):
         
         sus_p = [np.squeeze(self.sus[i,:,:]) for i in range(n_hh)]
         # susceptibility/total_sus chance of getting the seeded infection
+
+        #import pdb; pdb.set_trace()
         choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p]
         
         choices = np.array(choices).reshape(n_hh)
@@ -65,6 +67,20 @@ class Population(NamedTuple):
 
     def seed_none(self):
         initial_state = self.is_occupied * constants.STATE.susceptible
+        return initial_state
+
+
+    def make_initial_state(self, initial_seeding):
+        initial_seeding = InitialSeedingConfig(initial_seeding)
+
+        if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
+            initial_state = self.seed_one_by_susceptibility()
+        elif initial_seeding == InitialSeedingConfig.seed_none:
+            initial_state = self.seed_none()
+        else:
+            raise Exception(f"unimplimented initial seeding name {initial_seeding}")
+
+        initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
 
 class PopulationStructure:
@@ -82,7 +98,7 @@ class PopulationStructure:
 
         self.max_size = self.sizes_table.max()
         #import pdb; pdb.set_trace()
-        self.is_occupied = np.array([[1. if i < hh_size else 0. for i in range(self.max_size)] for hh_size in self.sizes_table]) # 1. if individual exists else 0.
+        self.is_occupied = np.array([[True if i < hh_size else False for i in range(self.max_size)] for hh_size in self.sizes_table], dtype=bool) # 1. if individual exists else 0.
         
         self.total_households = len(self.sizes_table)
 
@@ -110,16 +126,7 @@ class PopulationStructure:
         # Process and verify arguments #
         ################################
 
-        initial_seeding = InitialSeedingConfig(initial_seeding)
-
-        if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
-            initial_state = pop.seed_one_by_susceptibility()
-        elif initial_seeding == InitialSeedingConfig.seed_none:
-            initial_state = pop.seed_none()
-        else:
-            raise Exception(f"unimplimented initial seeding name {initial_seeding}")
-
-        initial_state = np.expand_dims(initial_state, axis=2)
+        initial_state = pop.make_initial_state(initial_seeding)
 
         if importation is None:
             importation_probability = 0. * pop.sus
@@ -150,5 +157,5 @@ class PopulationStructure:
         return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
 
 #x = Model()
-#print(x.run_trials(0.05, sizes={5:1000}))
+#print(x.run_trials(0.05, sizes={5:1}))
 

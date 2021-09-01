@@ -7,14 +7,17 @@ class Trait(abc.ABC):
         return self.draw_from_distribution(occupants)
     
     def plot(self, samples=1000, **kwargs):
-        output = np.array(self(samples))
+        shaped_array = np.full((samples,), True)
+        output = np.array(self(shaped_array))
         sample_mean = np.mean(output)
         sample_var = np.var(output)
 
         plt.hist(output, **kwargs)
         plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
-        plt.xlabel("relative magnitude of {0}".format(self.name))
+        plt.xlabel("relative magnitude")
         plt.ylabel("# people")
+
+        return sample_mean, sample_var
 
     @abc.abstractmethod
     def draw_from_distribution(self, occupants):
@@ -36,7 +39,7 @@ class ConstantTrait(Trait):
         return is_occupied * self.trait_value
 
     def __repr__(self):
-        return "Constant trait named {0} with value {1:.2f}".format(self.name, self.trait_value)
+        return "Constant trait named {0} with value {1:.2f}".format(self.trait_value)
 
 class GammaTrait(Trait):
     def __init__(self, mean, variance):
@@ -49,15 +52,17 @@ class GammaTrait(Trait):
         if self.variance == 0:
             return is_occupied * self.mean
         else:
-            occupants = is_occupied.copy()
-            filtered = occupants[occupants != 0]
-            filtered = np.random.gamma(self.mean**2/self.variance, scale=self.variance/self.mean, size=filtered.shape) # reassign values based on gamma dist
-            occupants[occupants != 0] = filtered
-
+            values = np.full_like(is_occupied, 0., dtype=float)
+            filtered = is_occupied[is_occupied != False]
+            # reassign values based on gamma dist
+            filtered = np.random.gamma(self.mean**2/self.variance, scale=self.variance/self.mean, size=filtered.shape)
+            values[is_occupied != False] = filtered
             #import pdb; pdb.set_trace()
-            return occupants
+            return values
 
     def __repr__(self):
-        return "Gamma distributed trait named {0} with mean {1:.2f} and variance {2:.2f}".format(self.name, self.mean, self.variance)
+        return "Gamma distributed trait with mean {0:.2f} and variance {1:.2f}".format(self.mean, self.variance)
     
 
+#t = GammaTrait(mean=1.0, variance=1.0)
+#t.plot(samples=100)
