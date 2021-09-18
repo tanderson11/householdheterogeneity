@@ -188,6 +188,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "ipython-unittest"
+version = "0.3.1"
+description = "Add unittest cell magics to IPython for easily running tests"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "ipywidgets"
 version = "7.6.3"
 description = "IPython HTML widgets for Jupyter"
@@ -899,7 +907,7 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.10"
-content-hash = "ebae94ada8018949180cca03528aaa07a904ff70ac63aa7dc5b4d3a15b00db43"
+content-hash = "267445f0026fef9f636bc474be430adc1651d2799eb6dc111ee30858e01d7b3e"
 
 [metadata.files]
 appnope = [
@@ -1086,6 +1094,10 @@ ipython = [
 ipython-genutils = [
     {file = "ipython_genutils-0.2.0-py2.py3-none-any.whl", hash = "sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8"},
     {file = "ipython_genutils-0.2.0.tar.gz", hash = "sha256:eb2e116e75ecef9d4d228fdc66af54269afa26ab4463042e33785b887c628ba8"},
+]
+ipython-unittest = [
+    {file = "ipython_unittest-0.3.1-py2.py3-none-any.whl", hash = "sha256:2cb00fe28115fb3ece83cd6e68ec5ffac46e3e4c4eac3ff8eb25563029c000aa"},
+    {file = "ipython_unittest-0.3.1.tar.gz", hash = "sha256:817c540b7efb1dc510fff9af6ad283ed85252096a3e41a4b091e2f6d04eee1c6"},
 ]
 ipywidgets = [
     {file = "ipywidgets-7.6.3-py2.py3-none-any.whl", hash = "sha256:e6513cfdaf5878de30f32d57f6dc2474da395a2a2991b94d487406c0ab7f55ca"},

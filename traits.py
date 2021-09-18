@@ -11,9 +11,10 @@ class Trait(abc.ABC):
         output = np.array(self(shaped_array))
         sample_mean = np.mean(output)
         sample_var = np.var(output)
+        ninetieth_percentile = np.percentile(output, 90)
 
         plt.hist(output, **kwargs)
-        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}".format(self, sample_mean, sample_var))
+        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}\n 90th percentile {2:.2f}".format(self, sample_mean, sample_var, ninetieth_percentile))
         plt.xlabel("relative magnitude")
         plt.ylabel("# people")
 
