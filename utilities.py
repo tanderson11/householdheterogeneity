@@ -45,7 +45,7 @@ def importation_rate_from_cumulative_prob(cumulative_probability, duration):
 
 def household_beta_from_hsar(hsar):
     # gamma distributed state lengths with shape k and period length T
-    T = constants.mean_vec[constants.INFECTIOUS_STATE]
-    k = constants.shape_vec[constants.INFECTIOUS_STATE]
+    T = constants.mean_vec[constants.STATE.infectious]
+    k = constants.shape_vec[constants.STATE.infectious]
     return (k/T) * ((1/(1-hsar)**(1/k))-1) # household beta as determined by hsar
 
