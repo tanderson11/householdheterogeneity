@@ -21,7 +21,6 @@ class Trait(abc.ABC):
         plt.axvline(np.percentile(output, 10))
         plt.axvline(np.percentile(output, 50))
         plt.axvline(np.percentile(output, 90))
-
         return sample_mean, sample_var
 
     @abc.abstractmethod
@@ -69,5 +68,27 @@ class GammaTrait(Trait):
         return "Gamma distributed trait with mean {0:.2f} and variance {1:.2f}".format(self.mean, self.variance)
     
 
+class BiModalTrait(Trait):
+    def __init__(self, n_fold_difference):
+        self.n_fold = n_fold_difference
+        # P_high * n + (1 - P_high) / n = 1.0
+        # P_high * n^2 + 1 - P_high = n
+        # P_high * n^2 - n + (1 - P_high) = 0
+        # P_high (n^2 - 1) - n + 1 = 0
+        # P_high = n-1 / (n^2 - 1)
+        self.probability_of_high_value = (self.n_fold - 1)/(self.n_fold**2 - 1)
+        assert self.probability_of_high_value * self.n_fold + (1 - self.probability_of_high_value) / self.n_fold == 1.0
+
+    def draw_from_distribution(self, occupants):
+        #values = np.full_like(occupants, 0., dtype=float)
+        is_high = np.random.random(occupants.shape) < self.probability_of_high_value
+        values = np.where(occupants & is_high, self.n_fold * occupants, occupants/self.n_fold)
+
+        return values
+
 #t = GammaTrait(mean=1.0, variance=1.0)
 #t.plot(samples=100)
+#plt.show()
+
+#BiModalTrait(4.0).plot(samples=1000)
+#plt.show()
