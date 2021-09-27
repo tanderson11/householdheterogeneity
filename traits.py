@@ -80,7 +80,9 @@ class BiModalTrait(Trait):
             self.probability_of_high_value = 1.0
         else:
             self.probability_of_high_value = (self.n_fold - 1)/(self.n_fold**2 - 1)
-        assert self.probability_of_high_value * self.n_fold + (1 - self.probability_of_high_value) / self.n_fold == 1.0
+
+        mean = self.probability_of_high_value * self.n_fold + (1 - self.probability_of_high_value) / self.n_fold
+        assert np.abs(mean - 1.0) < 0.001, mean
 
     def draw_from_distribution(self, occupants):
         #values = np.full_like(occupants, 0., dtype=float)
