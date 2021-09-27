@@ -76,7 +76,10 @@ class BiModalTrait(Trait):
         # P_high * n^2 - n + (1 - P_high) = 0
         # P_high (n^2 - 1) - n + 1 = 0
         # P_high = n-1 / (n^2 - 1)
-        self.probability_of_high_value = (self.n_fold - 1)/(self.n_fold**2 - 1)
+        if self.n_fold == 1.0:
+            self.probability_of_high_value = 1.0
+        else:
+            self.probability_of_high_value = (self.n_fold - 1)/(self.n_fold**2 - 1)
         assert self.probability_of_high_value * self.n_fold + (1 - self.probability_of_high_value) / self.n_fold == 1.0
 
     def draw_from_distribution(self, occupants):
