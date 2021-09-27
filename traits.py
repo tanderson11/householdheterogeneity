@@ -46,7 +46,7 @@ class ConstantTrait(Trait):
         return "Constant trait named {0} with value {1:.2f}".format(self.trait_value)
 
 class GammaTrait(Trait):
-    def __init__(self, mean, variance):
+    def __init__(self, mean=1.0, variance=None):
         # copy fields
         super().__init__()
         self.mean = mean
