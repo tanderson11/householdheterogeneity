@@ -38,78 +38,42 @@ class SelectedPoint:
     def __str__(self):
         return "Selected point at {0}".format(self.parameter_coordinates)
 
+def find_most_likely(logl_df, keys):
+    width = logl_df.unstack().columns.size # verify that this still works
+
+    idx = logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value
+    x_min = idx % width
+    y_min = idx // width
+    print(x_min, y_min)
+    baseline_1 = logl_df.unstack().reset_index()[keys[0]].to_list()[y_min]
+    baseline_2 = logl_df.unstack().columns.to_list()[x_min] #columns associated with key2, index with key1
+    return baseline_1, baseline_2
+
 class InteractiveFigure:
-    def __init__(self, path, subplots, baseline_key1_value, baseline_key2_value, recompute_logl=False, empirical_path=False):
-
-        # -- Reading the files --
-        self.comparison_df = pq.read_table(path+'comparison_df.parquet').to_pandas()
-        with open(path+'keys.json', 'r') as handle:
-            self.key1, self.key2 = json.load(handle)
-
-        self.full_baseline_df = pq.read_table(path+'baseline_df.parquet').to_pandas()
-
-        if empirical_path:
-            self.empirical = True
-            empirical_df = pq.read_table(empirical_path+"empirical_df.parquet").to_pandas()
-            empirical_logl_df = likelihood.logl_new(empirical_df, self.comparison_df, [self.key1, self.key2])
-            print("EMPIRICAL LOGL DF\n", empirical_logl_df)
-
+    def __init__(self, pool_df, full_sample_df, keys, subplots, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False):
+        self.is_empirical = is_empirical
+        self.pool_df = pool_df
+        self.full_sample_df = full_sample_df
+        self.key1, self.key2 = keys
+        self.full_logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
+        if self.is_empirical:
+            assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
-            width = empirical_logl_df.unstack().columns.size # verify that this still works
-
-            idx = empirical_logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value
-            x_min = idx % width
-            y_min = idx // width
-
-            print(x_min, y_min)
-            # overwrites any arguments passed to the constructor with the point estimate
-            baseline_key1_value = empirical_logl_df.unstack().reset_index()[self.key1].to_list()[y_min]
-            baseline_key2_value = empirical_logl_df.unstack().columns.to_list()[x_min] #columns associated with key2, index with key1
-
+                        
+            baseline_1, baseline_2 = find_most_likely(self.full_logl_df, keys)
             # add labels to the empirical df so its position can be identified
-            empirical_df[self.key1] = baseline_key1_value
-            empirical_df[self.key2] = baseline_key2_value
-            empirical_df["trialnum"] = EMPIRICAL_TRIAL_ID # -1 signals the empirical trial
-            baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
-            print("EMPIRICAL BASELINE COORDINATES\n", baseline_coordinates)
+            full_sample_df[self.key1] = baseline_1
+            full_sample_df[self.key2] = baseline_2
+            baseline_coordinates = {self.key1:baseline_1, self.key2:baseline_2}
 
-            self.baseline_df = empirical_df
-            self.full_baseline_df = pd.concat([empirical_df, self.full_baseline_df])
-
+            self.sample_df = full_sample_df
         else:
-            self.empirical = False
             # -- Selecting the location of the baseline point --
-            baseline_coordinates = {self.key1:baseline_key1_value, self.key2:baseline_key2_value}
-            self.baseline_df = self.baseline_at_point(baseline_key1_value, baseline_key2_value, one_trial=True)
+            baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
+            self.sample_df = self.baseline_at_point(baseline_values, one_trial=True)
+        import pdb; pdb.set_trace()
 
-        with open(path+"default_model.json", 'r') as handle:
-            self.baseline_model_dict = json.load(handle) # we load the baseline parameters from a json file
-        print(self.baseline_model_dict)
-
-        with open(path+"baseline_sizes.json", 'r') as handle:
-            self.baseline_sizes = json.load(handle) # we load the baseline parameters from a json file
-
-        with open(path+"default_key_values.json", 'r') as handle:
-            self.default_key_values = json.load(handle) # we load the baseline parameters from a json file 
-
-        os.chdir(path)
-
-        print("FULL BASELINE\n", self.full_baseline_df)
-
-        # --- Generating a logl df for faster everything ---
-        try:
-            if recompute_logl:
-                raise(FileNotFoundError)
-            else:
-                self.full_logl_df = pq.read_table('logl_df.parquet').to_pandas()
-                print("full logl from load", self.full_logl_df)
-                self.full_logl_df = self.full_logl_df.squeeze() #when the logl df is built it's a named series, but when we save it in pyarrow it's a Table, we need to make it a series again
-
-        except FileNotFoundError: # make the logl df if it doesn't exist
-            self.full_logl_df = likelihood.logl_new(self.full_baseline_df, self.comparison_df, [self.key1, self.key2])
-
-            print(self.full_logl_df)
-            pq.write_table(pa.Table.from_pandas(pd.DataFrame(self.full_logl_df)), "logl_df.parquet")
+        self.sample_model_dict = {}
 
         self.baseline_color = "red"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
@@ -120,11 +84,10 @@ class InteractiveFigure:
         self.available_colors = ["orange", "blue", "green", "violet"]
 
         self.subplots = subplots
-
         self.make_figure()
 
-    def baseline_at_point(self, key1_value, key2_value, one_trial=False):
-        baseline_df = self.full_baseline_df[(self.full_baseline_df[self.key1] == key1_value) & (self.full_baseline_df[self.key2] == key2_value)]
+    def baseline_at_point(self, key_values, one_trial=False):
+        baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == key_values[0]) & (self.full_sample_df[self.key2] == key_values[1])]
 
         try: # for legacy dfs that don't always include a trial column
             print(baseline_df["trialnum"])
@@ -202,9 +165,9 @@ class InteractiveFigure:
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        self.baseline_df = self.baseline_df = self.baseline_at_point(parameter_coordinates[self.key1], parameter_coordinates[self.key2], one_trial=True)
+        self.sample_df = self.sample_df = self.baseline_at_point((parameter_coordinates[self.key1], parameter_coordinates[self.key2]), one_trial=True)
 
-        print(self.baseline_df)
+        print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points[0] = self.baseline_point
@@ -241,15 +204,19 @@ def subfigure_factory(plot_type, ax, interactive):
 
         print("LOGL DF\n", logl_df)
 
-        if interactive.empirical:
+        if interactive.is_empirical:
             #import pdb; pdb.set_trace()
-            sizes=interactive.baseline_df.groupby("size")["model"].count().to_dict() # idiom for getting the counts at different sizes
-            title = "Log likelihood of observing empirical dataset\nsizes={}\ndefault values={}".format(sizes, interactive.default_key_values) 
+            sizes=interactive.sample_df.groupby("size")["model"].count().to_dict() # idiom for getting the counts at different sizes
+            title = ""
+            #title = "Log likelihood of observing empirical dataset\nsizes={}\n fixed values={}".format(sizes, interactive.fixed_values) 
         else:
-            if interactive.baseline_model_dict["importation_rate"] == 0:
-                title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation=0".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.baseline_model_dict["seeding"]["name"])
+            #if interactive.sample_model_dict["importation_rate"] == 0:
+            if True:
+                title = ""
+                #title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation=0".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.sample_model_dict["seeding"]["name"])
             else:
-                title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.baseline_model_dict["seeding"]["name"], interactive.baseline_model_dict["importation_rate"], interactive.baseline_model_dict["duration"])
+                title = ""
+                #title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.sample_model_dict["seeding"]["name"], interactive.sample_model_dict["importation_rate"], interactive.sample_model_dict["duration"])
                                                                                                 
         subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
     
@@ -267,12 +234,12 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'average heatmap':
-        average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())#.unstack() # unstack might need to come back, but I removed it because it was giving an error
+        average_df = interactive.pool_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())#.unstack() # unstack might need to come back, but I removed it because it was giving an error
         title = "Average infections per household"
         subfigure = Heatmap(ax, interactive, average_df, title)
 
     elif plot_type == 'average contour plot':
-        average_df = interactive.comparison_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())
+        average_df = interactive.pool_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())
         #print("AVERAGE DF\n", average_df, average_df.unstack())
         subfigure = ContourPlot(ax, interactive, average_df, "Contours of average number of infections with default levels", color_label="average infections")
 
@@ -304,11 +271,11 @@ class SelectionDependentSubfigure(Subfigure):
     def df_at_point(self, point):
         labels = [point.parameter_coordinates[self.interactive.key1], point.parameter_coordinates[self.interactive.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
-            restriction = self.interactive.baseline_df
+            restriction = self.interactive.sample_df
         else: # otherwise, we select only the comparison distributions at the relevant points
-            masks = [self.interactive.comparison_df[self.interactive.key1] == labels[0], self.interactive.comparison_df[self.interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
+            masks = [self.interactive.pool_df[self.interactive.key1] == labels[0], self.interactive.pool_df[self.interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
             mask = functools.reduce(operator.and_, masks)
-            restriction = self.interactive.comparison_df[mask]
+            restriction = self.interactive.pool_df[mask]
 
         return labels, restriction
 
