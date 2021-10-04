@@ -39,7 +39,7 @@ class SelectedPoint:
         return "Selected point at {0}".format(self.parameter_coordinates)
 
 class InteractiveFigure:
-    def __init__(self, path, subplots_shape, subfigure_types, baseline_key1_value, baseline_key2_value, recompute_logl=False, empirical_path=False):
+    def __init__(self, path, subplots, baseline_key1_value, baseline_key2_value, recompute_logl=False, empirical_path=False):
 
         # -- Reading the files --
         self.comparison_df = pq.read_table(path+'comparison_df.parquet').to_pandas()
@@ -119,8 +119,7 @@ class InteractiveFigure:
         # --
         self.available_colors = ["orange", "blue", "green", "violet"]
 
-        self.subplots_shape = subplots_shape
-        self.subfigure_types = subfigure_types
+        self.subplots = subplots
 
         self.make_figure()
 
@@ -183,11 +182,10 @@ class InteractiveFigure:
     
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
-        print(*self.subplots_shape)
-        self.fig, self.ax = plt.subplots(*self.subplots_shape, figsize=(15,7))
+        self.fig, self.ax = plt.subplots(*self.subplots.shape, figsize=(15,7))
 
         print(self.ax.ravel())
-        for subfigure_type, _ax in zip(self.subfigure_types, self.ax.ravel()):
+        for subfigure_type, _ax in zip(self.subplots.ravel(), self.ax.ravel()):
             print("making association")
             _ax.associated_subfigure = subfigure_factory(subfigure_type, _ax, self) # adds a subfigure parameter to each plt axes instance
 
@@ -400,7 +398,9 @@ class TraitHistograms(SelectionDependentSubfigure):
 
         bins = np.linspace(0., 6., 30)
         for p in self.interactive.selected_points:
-            trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
+            #trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
+            trait=traits.GammaTrait(mean=1.0, variance=p.parameter_coordinates[graph_key])
+
             trait.plot(samples=10000, color=p.color, alpha=0.5, bins=bins)
         plt.title("Gamma distributed {0}".format(graph_key))
 
