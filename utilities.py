@@ -74,14 +74,14 @@ def implicit_solve_for_beta(hsar, sus, inf, N=20000):
 
     from torch_forward_simulation import torch_state_length_sampler
     state_length_draws = np.array(torch_state_length_sampler(constants.STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     # a function that has a root when the populational average hsar (over N samples) is equal to the given hsar
     def g(beta):
         return np.sum(np.array([1 - np.exp(-1 * beta * T * f * s) for s,f,T in zip(sus_draws, inf_draws, state_length_draws)])) - N * hsar
 
     from scipy.optimize import fsolve
     beta = fsolve(g, 0.03)
-    return beta
+    return beta[0]
 
 #import traits
 #t = traits.GammaTrait(mean=1.0, variance=1.0)
