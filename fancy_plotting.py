@@ -1,5 +1,7 @@
 # Initialization
 import importlib
+
+from numpy.lib import percentile
 import population
 import likelihood
 import utilities
@@ -196,7 +198,7 @@ class InteractiveFigure:
             self.new_baseline_flag = True
 
 def subfigure_factory(plot_type, ax, interactive):
-    possible_plot_types = ['logl heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot']
+    possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot']
     assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
 
     if plot_type == 'logl heatmap':
@@ -222,6 +224,18 @@ def subfigure_factory(plot_type, ax, interactive):
                                                                                                 
         subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
     
+    elif plot_type == 'confidence heatmap':
+        trialnumber = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
+        title = ""
+        subfigure = InOrOutConfidenceIntervalHeatmap(ax, interactive, logl_df, title, scatter_stars=False)
+
+    elif plot_type == 'many confidence heatmap':
+        trialnumber = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
+        title = ""
+        subfigure = ManyMasksConfidenceHeatmap(ax, interactive, logl_df, title, scatter_stars=False)
+
     elif plot_type == 'logl contour plot':
         trialnumber=0
         # unstacked for Z
@@ -515,7 +529,7 @@ class ContourPlot(OnMatplotlibAxes):
         X,Y = np.meshgrid(self.Z.columns, self.Z.index)
         contourf = plt.contourf(X, Y, self.Z, **self.kwargs)
 
-        self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
+        #self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
 
         cbar = plt.colorbar(contourf)
         cbar.ax.set_ylabel(self.color_label)
@@ -546,7 +560,8 @@ class Heatmap(OnSeabornAxes):
 
         print("df before heatmap\n", self.df)
         #import pdb; pdb.set_trace()
-        sns.heatmap(self.df, mask=np.isinf(self.df), ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
+        ax = sns.heatmap(self.df, mask=np.isinf(self.df), ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
+        ax.invert_yaxis()
 
         if self.scatter_stars:
             self.scatter_point_estimates()#color='blue')
@@ -554,3 +569,57 @@ class Heatmap(OnSeabornAxes):
         plt.title(self.title)
 
         self.draw_patches()
+
+class ConfidenceHeatmap(Heatmap):
+    @classmethod
+    def normalize_probability(cls, df):
+        prob_space = np.exp(df.sort_values(ascending=False)-df.max())
+        normalized_probability = prob_space/prob_space.sum()
+        print(normalized_probability.sum())
+        return normalized_probability
+
+    @classmethod
+    def find_confidence_mask(cls, df, percentiles=[0.95]):
+        normalized_probability = cls.normalize_probability(df)
+        confidence_masks = []
+        for p in percentiles:
+            confidence_masks.append((normalized_probability.cumsum() < p).astype('int32'))
+        confidence_mask = sum(confidence_masks)
+        return confidence_mask
+
+    def draw(self):
+        Subfigure.draw(self)
+        cmap = sns.color_palette("mako", self.n_masks)
+        #cmap.set_bad("black") 
+        in_no_group_mask = np.where(self.df==0., True, False)
+        ax = sns.heatmap(self.df, mask=in_no_group_mask, ax=self.ax, cbar=True, cmap=cmap) # need .unstack() here if we don't do it by default
+        ax.invert_yaxis()
+        ax.set_facecolor("orange")
+        colorbar = ax.collections[0].colorbar
+        r = colorbar.vmax - colorbar.vmin 
+        colorbar.set_ticks([colorbar.vmin + r / self.n_masks * (0.5 + i) for i in range(self.n_masks)])
+        colorbar.set_ticklabels(list(self.labels))
+
+        if self.scatter_stars:
+            self.scatter_point_estimates()
+
+        plt.title(self.title)
+
+        self.draw_patches()
+
+class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
+    def __init__(self, ax, interactive, df, title, scatter_stars=False):
+        super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
+        #import pdb; pdb.set_trace()
+        #self.df = self.normalize_probability(self.df.unstack()).unstack().T
+        self.n_masks = 1
+        self.labels = ["95%"]
+        self.df = self.find_confidence_mask(self.df.unstack()).unstack().T
+        #import pdb; pdb.set_trace()
+
+class ManyMasksConfidenceHeatmap(ConfidenceHeatmap):
+    def __init__(self, ax, interactive, df, title, scatter_stars=False):
+        super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
+        self.df = self.find_confidence_mask(self.df.unstack(), percentiles=(0.99, 0.95, 0.90, 0.85)).unstack().T
+        self.n_masks = 4
+        self.labels = reversed(["85%", "90%", "95%", "99%"])

@@ -157,5 +157,6 @@ class PopulationStructure:
         return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
 
 #x = Model()
+#x.run_trials(0.05, sizes={5:1, 4:1}, sus=traits.BiModalTrait(2.0))
 #print(x.run_trials(0.05, sizes={5:1}))
 

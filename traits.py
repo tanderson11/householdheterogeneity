@@ -95,5 +95,5 @@ class BiModalTrait(Trait):
 #t.plot(samples=100)
 #plt.show()
 
-#BiModalTrait(4.0).plot(samples=1000)
+#BiModalTrait(2.6).plot(samples=1000)
 #plt.show()

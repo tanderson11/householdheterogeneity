@@ -52,19 +52,18 @@ if __name__ == "__main__":
 
     directory = sys.argv[1]
     df = load_dataframe(directory, "pool_df-inf-var-0.00.parquet")
-    sample_df, pool_df = split_to_sample_and_pool(df, sample_size=1000)
+    sample_df, pool_df = split_to_sample_and_pool(df, sample_size=250)
 
     plotting_keys = load_plot_keys(directory)
     print(plotting_keys)
     plotting_keys = ["hsar", "sus_var"]
     #dump_keys(directory, plotting_keys)
 
-    logl_df = load_dataframe(directory, "pool_df-inf-var-0.00_logl_df.parquet")
+    #logl_df = load_dataframe(directory, "pool_df-inf-var-0.00_logl_df.parquet")
     logl_df = likelihood.logl_from_data(pool_df, sample_df, plotting_keys)
-    #save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
+    save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
 
-    figures = np.array(["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]).reshape((2,2))
-    import pdb; pdb.set_trace()
+    figures = np.array(["confidence heatmap", "many confidence heatmap", "logl contour plot", "trait histograms"]).reshape((2,2))
 
     fancy_plotting.InteractiveFigure(pool_df, sample_df, logl_df, plotting_keys, figures, baseline_values=(0.3, 1.0))
 

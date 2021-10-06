@@ -26,5 +26,5 @@ empirical_path = False
 #path = empirical_path + "bneibrak-sus_var-inf_var-hsar032--seed_one-no_importation-06-10-02_07/"
 #path = empirical_path + "bneibrak-sus_var-inf_var-hsar032--seed_one-no_importation-06-15-15_08/"
 
-interactive = fancy_plotting.InteractiveFigure(path, figures, 0.2, 0.2, recompute_logl=False, empirical_path=empirical_path)
+interactive = fancy_plotting.InteractiveFigure(path, axes_shape, figures, 0.2, 0.2, recompute_logl=False, empirical_path=empirical_path)
 
