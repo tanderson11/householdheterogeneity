@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import json
@@ -16,6 +17,8 @@ import fancy_plotting
 
 def load_dataframe(path, filename):
     df = pq.read_table(os.path.join(path, filename)).to_pandas()
+    df = df.rename(index=lambda val: round(val, 3))
+    df = df.squeeze()
     return df
 
 #def load_empirical_dataset(path, filename):
@@ -39,18 +42,29 @@ def dump_keys(path, keys):
     with open(os.path.join(path, "keys.json"), 'w') as f:
         json.dump(keys, f)
 
+def save_df(path, filename, df):
+    parquet_df = pa.Table.from_pandas(pd.DataFrame(df))
+    pq.write_table(parquet_df, os.path.join(path, filename))
+
+
 if __name__ == "__main__":
     #directory = "/Users/thayer/covid_households/experiments/big-region-n-fold-all-size-6-09-27-02_59-sus-bimodal/"
 
     directory = sys.argv[1]
     df = load_dataframe(directory, "pool_df-inf-var-0.00.parquet")
-    #plotting_keys = load_plot_keys(directory)
-    plotting_keys = ["hsar", "sus_var"]
-    dump_keys(directory, plotting_keys)
     sample_df, pool_df = split_to_sample_and_pool(df, sample_size=1000)
 
-    #logl_df = likelihood.logl_from_data(pool_df, sample_df, plotting_keys)
+    plotting_keys = load_plot_keys(directory)
+    print(plotting_keys)
+    plotting_keys = ["hsar", "sus_var"]
+    #dump_keys(directory, plotting_keys)
+
+    logl_df = load_dataframe(directory, "pool_df-inf-var-0.00_logl_df.parquet")
+    logl_df = likelihood.logl_from_data(pool_df, sample_df, plotting_keys)
+    #save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
 
     figures = np.array(["logl heatmap", "infection histograms", "logl contour plot", "trait histograms"]).reshape((2,2))
-    fancy_plotting.InteractiveFigure(pool_df, sample_df, plotting_keys, figures, baseline_values=(0.3, 1.0))
+    import pdb; pdb.set_trace()
+
+    fancy_plotting.InteractiveFigure(pool_df, sample_df, logl_df, plotting_keys, figures, baseline_values=(0.3, 1.0))
 

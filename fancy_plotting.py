@@ -50,17 +50,19 @@ def find_most_likely(logl_df, keys):
     return baseline_1, baseline_2
 
 class InteractiveFigure:
-    def __init__(self, pool_df, full_sample_df, keys, subplots, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False):
+    def __init__(self, pool_df, full_sample_df, logl_df, keys, subplots, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False):
         self.is_empirical = is_empirical
+
         self.pool_df = pool_df
         self.full_sample_df = full_sample_df
         self.key1, self.key2 = keys
-        self.full_logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
+
+        self.logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
         if self.is_empirical:
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
                         
-            baseline_1, baseline_2 = find_most_likely(self.full_logl_df, keys)
+            baseline_1, baseline_2 = find_most_likely(self.logl_df, keys)
             # add labels to the empirical df so its position can be identified
             full_sample_df[self.key1] = baseline_1
             full_sample_df[self.key2] = baseline_2
@@ -71,7 +73,7 @@ class InteractiveFigure:
             # -- Selecting the location of the baseline point --
             baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_values, one_trial=True)
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
 
@@ -135,7 +137,7 @@ class InteractiveFigure:
             print("Error. Tried to select point but no colors are available.")
             return False
         
-        point = SelectedPoint(parameter_coordinates, color,  **kwargs)
+        point = SelectedPoint(parameter_coordinates, color, **kwargs)
         self.selected_points.append(point)
 
         self.draw_after_toggle()
@@ -200,7 +202,7 @@ def subfigure_factory(plot_type, ax, interactive):
     if plot_type == 'logl heatmap':
         # new code with the full logl df
         trialnumber = 0
-        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
 
         print("LOGL DF\n", logl_df)
 
@@ -223,7 +225,7 @@ def subfigure_factory(plot_type, ax, interactive):
     elif plot_type == 'logl contour plot':
         trialnumber=0
         # unstacked for Z
-        logl_df = interactive.full_logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
         
         # logl_df -> pdf
         # pdf -> levels at 95%, 80%, 65%, 50%
@@ -245,9 +247,6 @@ def subfigure_factory(plot_type, ax, interactive):
 
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, interactive)
-
-    elif plot_type == 'two point likelihoods':
-        subfigure = TwoPointLikelihoods(ax, interactive)
 
     elif plot_type == 'trait histograms':
         subfigure = TraitHistograms(ax, interactive)
@@ -278,72 +277,6 @@ class SelectionDependentSubfigure(Subfigure):
             restriction = self.interactive.pool_df[mask]
 
         return labels, restriction
-
-class TwoPointLikelihoods(SelectionDependentSubfigure):
-    def __init__(self, ax, interactive):
-        Subfigure.__init__(self, ax, interactive)
-
-    def draw(self):
-        Subfigure.draw(self)
-        point_dfs = []
-        color_dict = {}
-        for p in self.interactive.selected_points:
-            if not p.is_baseline:
-                labels, df = self.df_at_point(p)
-                point_dfs.append(df)
-                color_dict[tuple(labels)] = p.color
-                
-        #point_dfs = [self.df_at_point(p)[1] for p in self.interactive.selected_points if not p.is_baseline] # 1 index beccause df_at_point returns (parameter_coord_labels, df); ignore baseline because it doesn't make sense for this figure
-        
-
-        if len(point_dfs) > 0:
-            df = pd.concat(point_dfs)
-            
-            grouped = df.groupby([self.interactive.key1, self.interactive.key2]) #.apply(lambda g: list(itertools.combinations(g.values,2)))
-            rows = []
-            index = []
-            for k1,g1 in grouped:
-                column_names=[]
-                row = []
-                for k2,g2 in grouped:
-                    logl = likelihood.log_likelihood(["size", "infections"], g1, g2) # observed, frequencies
-                    print(k1, k2)
-                    print(logl)
-                    row.append(logl)
-                    column_names.append(k2) # this is a little inefficient, we only really need to do it once.
-                
-                # possibly try to create more subplots and vertically stack linear sns heatmaps
-                
-                rows.append(row)
-                print("k1", k1)
-                index.append(k1)
-
-            print(index)
-            grid = np.array(rows)
-            logl_df = pd.DataFrame(grid, columns=column_names, index=index)
-
-            print(logl_df)
-            #mask = np.zeros_like(grid, dtype=np.bool)
-            #mask[np.tril_indices_from(mask, k=-1)] = True
-            
-            #sns.kdeplot(x=logl_df[key2], y=logl_df[key1], ax=self.ax, annot=True, cbar=False)
-            sns.heatmap(logl_df, ax=self.ax, annot=True, cbar=False)
-            plt.ylabel("as observed")
-            plt.xlabel("as frequencies")
-
-            plt.title("Two point likelihoods using only simulated data")
-
-            #colors = [p.color for p in self.interactive.selected_points if not p.is_baseline]
-            #print(colors)
-            #print([t for t in self.ax.xaxis.get_ticklabels()])
-            [t.set_color(color_dict[tup]) for t,tup in zip(self.ax.xaxis.get_ticklabels(), index)]
-            [t.set_color(color_dict[tup]) for t,tup in zip(self.ax.yaxis.get_ticklabels(), column_names)]
-            
-            #[t.set_color('red') for t in self.ax.xaxis.get_ticklabels()]
-            
-            #plt.pcolormesh(logl_df)
-            #plt.yticks(np.arange(0.5, len(logl_df.index), 1), logl_df.index)
-            #plt.xticks(np.arange(0.5, len(logl_df.columns), 1), logl_df.columns)
 
 class TraitHistograms(SelectionDependentSubfigure):
     def __init__(self, ax, interactive):
@@ -400,6 +333,7 @@ class OnAxesSubfigure(Subfigure):
     def click(self, event_x, event_y, click_type):
         parameter_coordinates = self.click_to_coordinates(event_x, event_y)
 
+        print(parameter_coordinates)
         if click_type == "select":
             self.interactive.toggle(parameter_coordinates)
         elif click_type == "reset baseline":
@@ -430,7 +364,7 @@ class OnAxesSubfigure(Subfigure):
         x_mins = []
         y_mins = []
         colors = []
-        for trial,_logl_df in self.interactive.full_logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+        for trial,_logl_df in self.interactive.logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
@@ -583,8 +517,6 @@ class ContourPlot(OnMatplotlibAxes):
 
         self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
 
-
-
         cbar = plt.colorbar(contourf)
         cbar.ax.set_ylabel(self.color_label)
         # Add the contour line levels to the colorbar
@@ -605,7 +537,6 @@ class Heatmap(OnSeabornAxes):
         OnSeabornAxes.__init__(self, ax, interactive)
         self.stacked_df = df
         self.df = df.unstack()
-
         self.title = title
 
         self.scatter_stars = scatter_stars
@@ -614,7 +545,8 @@ class Heatmap(OnSeabornAxes):
         Subfigure.draw(self)
 
         print("df before heatmap\n", self.df)
-        sns.heatmap(self.df, ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
+        #import pdb; pdb.set_trace()
+        sns.heatmap(self.df, mask=np.isinf(self.df), ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
 
         if self.scatter_stars:
             self.scatter_point_estimates()#color='blue')
