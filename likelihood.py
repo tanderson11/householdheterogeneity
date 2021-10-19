@@ -23,13 +23,20 @@ def compute_frequencies(comparison, grouping):
     frequencies = frequencies_grouped.size() / frequency_total
     frequencies.name = 'freqs'
     hh_size = frequencies.reset_index()['size'].iloc[0]
-    if len(frequencies) != hh_size:
-        #import pdb; pdb.set_trace()
-        # add 0 in any entry missing from the index: ie, if we don't ever observe that number of infections, its frequency is 0
-        z = pd.DataFrame({"size":hh_size, "infections":list(range(1,hh_size+1)), "freqs":0.})
-        z = z.set_index(["size", "infections"]).squeeze()
-        return z
-
+    repaired_parts = []
+    for hh_size, g in frequencies.groupby(['size']):
+        if len(g) != hh_size:
+            #import pdb; pdb.set_trace()
+            # add 0 in any entry missing from the index: ie, if we don't ever observe that number of infections, its frequency is 0
+            z = pd.DataFrame({"size":hh_size, "infections":list(range(1,hh_size+1)), "freqs":0.})
+            z = z.set_index(["size", "infections"]).squeeze()
+            z.update(frequencies) # then add back in the frequencies we do know
+            repaired_parts.append(z)
+    # then put the repaired parts back in situ in the frequencies df
+    for repaired_part in repaired_parts:
+        frequencies = pd.concat([frequencies, repaired_part])
+        duplicated = frequencies.index.duplicated()
+        frequencies = frequencies[~duplicated]
     return frequencies
 
 def logl_from_data(synthetic, empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"]):
