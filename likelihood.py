@@ -14,7 +14,10 @@ def frequencies_from_synthetic(synthetic, parameter_keys, household_keys=["size"
         frequencies = comparison_grouped.apply(lambda g: compute_frequencies(g, household_keys)) # precompute the frequencies at each point because this is the expensive step
     else:
         frequencies = compute_frequencies(synthetic, household_keys)
-    
+
+    if not isinstance(frequencies, pd.core.series.Series): # if there are multiple sizes, the result comes out in a series, if not it comes out in a dataframe that needs the size to be stacked back in as a column
+        frequencies = frequencies.stack(level=[0,1])
+
     return frequencies
 
 def compute_frequencies(comparison, grouping):
@@ -42,12 +45,7 @@ def compute_frequencies(comparison, grouping):
 def logl_from_data(synthetic, empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"]):
     frequencies = frequencies_from_synthetic(synthetic, parameter_keys, household_keys=household_keys)
     counts = counts_from_empirical(empirical, parameter_keys, baseline_only_keys=baseline_only_keys, household_keys=household_keys)
-
-    if isinstance(frequencies, pd.core.series.Series): # if there are multiple sizes, the result comes out in a series, if not it comes out in a dataframe that needs the size to be stacked back in as a column
-        log_freqs = np.log(frequencies)
-    else:
-        log_freqs = np.log(frequencies).stack(level=[0,1])
-
+    log_freqs = np.log(frequencies)
     counts.name = "count"
     log_freqs.name = "log freq"
     counts = counts.reset_index()
