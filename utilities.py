@@ -17,8 +17,8 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     # and this was the old way
     #counted_unstacked = counts.unstack(level=list(range(len(key))))
     #import pdb; pdb.set_trace()
-    counted_unstacked.plot.bar(**kwargs)
-    return counted_unstacked
+    ax = counted_unstacked.plot.bar(**kwargs)
+    return counted_unstacked, ax
     
 def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])
@@ -68,6 +68,18 @@ def sample_hsar_no_state_lengths(beta, trait, N=20000):
     hsar = np.average(hsar_draws)
     return hsar
 
+def sample_hsar_with_state_lengths(beta, sus, inf, N=20000):
+    sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
+    inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
+    T = constants.mean_vec[constants.STATE.infectious]
+
+    from torch_forward_simulation import torch_state_length_sampler
+    length_draws = np.array(torch_state_length_sampler(constants.STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
+
+    hsar_draws = np.array([1 - np.exp(-1 * beta * s * f * T) for s,f,T in zip(sus_draws, inf_draws, length_draws)])
+    hsar = np.average(hsar_draws)
+    return hsar
+
 def implicit_solve_for_beta(hsar, sus, inf, N=20000):
     sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
     inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
@@ -80,11 +92,35 @@ def implicit_solve_for_beta(hsar, sus, inf, N=20000):
         return np.sum(np.array([1 - np.exp(-1 * beta * T * f * s) for s,f,T in zip(sus_draws, inf_draws, state_length_draws)])) - N * hsar
 
     from scipy.optimize import fsolve
-    beta = fsolve(g, 0.03)
+    beta = fsolve(g, 0.03) # 0.03 = x0
     return beta[0]
 
-#import traits
-#t = traits.GammaTrait(mean=1.0, variance=1.0)
+import scipy.optimize
+def make_objective_function(percentile, target_fraction):
+    def gamma_objective_function(x):
+        '''A function that has the value 0 when the top {percentile} percent in the trait hold {target_fraction} fraction of the population-wide total of the trait.'''
+        if x < 0: x = 0
+
+        trait = traits.GammaTrait(mean=1.0, variance=x)
+        sample = trait.draw_from_distribution(np.full((1000000,1), True, dtype=bool))
+        fraction_held_in_top_percentile = np.sum(np.sort(sample, axis=0)[int(percentile/100*len(sample)):]/np.sum(sample))
+        #print(x, fraction_held_in_top_percentile, target_fraction - fraction_held_in_top_percentile)
+        return target_fraction - fraction_held_in_top_percentile
+    return gamma_objective_function
+
+def find_gamma_target_variance(percentile, target_fraction, method='fsolve'):
+    func = make_objective_function(percentile, target_fraction)
+    #print("Test:", [2.3], func(2.3))
+    if method == 'least squares':
+        root = scipy.optimize.least_squares(func, x0=0., bounds=(0., 100))
+    elif method == 'fsolve':
+        root = scipy.optimize.fsolve(func, x0=0.)
+    return root
+
+if __name__ == '__main__':
+    import traits
+    s = traits.GammaTrait(mean=1.0, variance=1.0)
+    f = traits.ConstantTrait()
 #solve_for_beta_implicitly_no_state_lengths(0.80, t)
 #f = traits.GammaTrait(mean=1.0, variance=1.0)
 #s = traits.ConstantTrait()
