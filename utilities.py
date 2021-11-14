@@ -1,5 +1,6 @@
 import numpy as np
 import constants
+import traits
 
 ### Initial infection seeding utility functions
 
