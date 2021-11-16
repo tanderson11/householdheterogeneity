@@ -13,6 +13,7 @@ class StateLengthConfig(enum.Enum):
 
 class InitialSeedingConfig(enum.Enum):
     seed_one_by_susceptibility = 'seed one by susceptibility'
+    fast_by_susceptibility = 'fast by susceptibility'
     no_initial_infections = 'seed none'
 
 class ImportationRegime(NamedTuple):
@@ -22,7 +23,7 @@ class ImportationRegime(NamedTuple):
 class Model(NamedTuple):
     # simulation parameters
     state_lengths: str = StateLengthConfig.gamma_state_lengths.value
-    initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
+    initial_seeding: str = InitialSeedingConfig.fast_by_susceptibility.value
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
 
@@ -92,6 +93,8 @@ class Population(NamedTuple):
 
         if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
             initial_state = self.seed_one_by_susceptibility()
+        elif initial_seeding == InitialSeedingConfig.fast_by_susceptibility:
+            initial_state = self.fast_seed_one_by_susceptibility()
         elif initial_seeding == InitialSeedingConfig.seed_none:
             initial_state = self.seed_none()
         else:
@@ -174,7 +177,9 @@ class PopulationStructure:
         return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
 
 if __name__ == '__main__':
-    x = PopulationStructure({5:200000, 10:200000})
+    x = Model()
+    x.run_trials(0.05, sizes={5:1, 4:1}, sus=traits.BiModalTrait(2.0))
+    x = PopulationStructure({5:10000, 10:10000})
     pop = x.make_population()
-    #pop.fast_seed_one_by_susceptibility()
+    pop.fast_seed_one_by_susceptibility()
     #pop.seed_one_by_susceptibility()
