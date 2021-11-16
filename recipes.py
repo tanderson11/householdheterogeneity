@@ -50,7 +50,24 @@ class Population(NamedTuple):
     inf: np.ndarray
     connectivity_matrix: np.ndarray
 
+    def fast_seed_one_by_susceptibility(self):
+        # Let's say a household has susceptibilites like 0.5, 1.0, 2.0
+        # we want to map these onto a 'dice' that is rolled between 0 and 1
+        # like 1/7, 2/7, 4/7 -> 1/7, 3/7, 7/7. Then we roll our dice in [0,1] and look where it 'landed'
+        # ie: maps the susceptibilities onto their share of the unit interval
+        roll_mapping = np.cumsum(np.squeeze(self.sus)/np.sum(self.sus, axis=1), axis=1)
+        roll = np.random.random((roll_mapping.shape[0],1))
+        hits = np.where(roll_mapping > roll) # our first `False` in each row of this array corresponds to where we want to seed the infection
+        # we want only the unique values in the row indices so if the roll was 2/7 we want just 3/7 not also 7/7
+        row_hits, one_index_per_row = np.unique(hits[0], return_index=True)
+        col_hits = hits[1][one_index_per_row]
+
+        initial_state = self.is_occupied * constants.STATE.susceptible
+        initial_state[row_hits, col_hits] = constants.STATE.exposed
+        return initial_state
+
     def seed_one_by_susceptibility(self):
+        #import pdb; pdb.set_trace()
         n_hh = len(self.is_occupied)
         initial_state = self.is_occupied * constants.STATE.susceptible
         
@@ -156,7 +173,8 @@ class PopulationStructure:
 
         return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
 
-#x = Model()
-#x.run_trials(0.05, sizes={5:1, 4:1}, sus=traits.BiModalTrait(2.0))
-#print(x.run_trials(0.05, sizes={5:1}))
-
+if __name__ == '__main__':
+    x = PopulationStructure({5:200000, 10:200000})
+    pop = x.make_population()
+    #pop.fast_seed_one_by_susceptibility()
+    #pop.seed_one_by_susceptibility()
