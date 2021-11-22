@@ -46,12 +46,22 @@ def save_df(path, filename, df):
     parquet_df = pa.Table.from_pandas(pd.DataFrame(df))
     pq.write_table(parquet_df, os.path.join(path, filename))
 
+def extract_slice(frequency_path, key_ranges):
+    frequency_df = pq.read_table(frequency_path).to_pandas().squeeze()
+    reset = frequency_df.reset_index()
+
+    for k,target_range in key_ranges.items():
+        if isinstance(target_range, tuple):
+            continue
+        satisfying = (reset[k] <= target_range[1]) & (reset[k] >= target_range[0])
+        reset = reset[satisfying]
+    
+    return reset
+
 
 if __name__ == "__main__":
-    #directory = "/Users/thayer/covid_households/experiments/big-region-n-fold-all-size-6-09-27-02_59-sus-bimodal/"
     baseline_values = (0.3, 1.0)
     directory = sys.argv[1]
-    #plotting_keys = load_plot_keys(directory)
 
     # GENEVA
 
@@ -69,7 +79,7 @@ if __name__ == "__main__":
 
     #df = load_dataframe(directory, "pool_df-hsar-0.20.parquet")
     #df = load_dataframe(directory, "pool_df-hsar-0.320.parquet")
-    df = load_dataframe(directory, "pool_df-hsar-0.310.parquet")
+    df = load_dataframe(directory, "pool_df-hsar-0.250.parquet")
     print("UNIQUE INF VAR:", df['inf_var'].unique())
     print("UNIQUE SUS VAR:", df['sus_var'].unique())
 
@@ -82,9 +92,9 @@ if __name__ == "__main__":
     use_by_mass_params = True
     if use_by_mass_params:
         # hardcoded axes for a minute
-        #axis = np.linspace(0.2, 0.9, 8)
-        import pdb; pdb.set_trace()
-        axis = np.linspace(0.2, 0.9, 22)
+        axis = np.linspace(0.2, 0.9, 8)
+        #import pdb; pdb.set_trace()
+        #axis = np.linspace(0.2, 0.9, 22)
         axis = np.array([float("{:.2f}".format(x)) for x in axis])
         baseline_values = (0.2, 0.2)
         sample_df['sus_mass'] = np.array(list(axis) * int(len(sample_df['sus_var'])/len(axis)))
@@ -100,11 +110,11 @@ if __name__ == "__main__":
     #dump_keys(directory, plotting_keys)
 
     #logl_df = load_dataframe(directory, "pool_df-inf-var-0.00_logl_df.parquet")
-    logl_df = likelihood.logl_from_data(pool_df, sample_df, plotting_keys)
     #save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
 
     #figures = np.array(["confidence heatmap", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
     figures = np.array(["logl contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
 
-    fancy_plotting.InteractiveFigure(pool_df, sample_df, logl_df, plotting_keys, figures, baseline_values=baseline_values)
+    #fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=sample_df)
+    fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=None)
 

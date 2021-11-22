@@ -20,17 +20,11 @@ import itertools
 import pyarrow as pa
 import pyarrow.parquet as pq
 import matplotlib.ticker as ticker
+
 import constants
+import recipes
 
 EMPIRICAL_TRIAL_ID = -1
-
-# Manager
-# maintains registry of axes -> object
-# maintains ledger of selected points
-# handles click events by sending them to underlying objects
-
-# Underlying figures
-# handle click event and broadcast to the manager any public data that needs to change (manager then tells other subfigures to mirror those changes)
 
 class SelectedPoint:
     def __init__(self, parameter_coordinates, color, is_baseline=False):
@@ -54,12 +48,13 @@ def find_most_likely(logl_df, keys):
     return baseline_1, baseline_2
 
 class InteractiveFigure:
-    def __init__(self, pool_df, full_sample_df, logl_df, keys, subplots, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False):
+    def __init__(self, pool_df, keys, subplots, full_sample_df=None, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False, simulation_sample_size=100):
         self.is_empirical = is_empirical
-
         self.pool_df = pool_df
-        self.full_sample_df = full_sample_df
         self.key1, self.key2 = keys
+
+        self.full_sample_df = full_sample_df
+        self.simulation_sample_size = simulation_sample_size
 
         self.logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
         if self.is_empirical:
@@ -75,25 +70,64 @@ class InteractiveFigure:
             self.sample_df = full_sample_df
         else:
             # -- Selecting the location of the baseline point --
-            baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
-            self.sample_df = self.baseline_at_point(baseline_values, one_trial=True)
+            #import pdb; pdb.set_trace()
+            if baseline_values is None:
+                baseline_coordinates = {self.key1:self.pool_df[self.key1].iloc[0], self.key2:self.pool_df[self.key2].iloc[0]}
+            else:
+                baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
+            self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
 
         self.baseline_color = "red"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
-        
+
         self.selected_points = [self.baseline_point]
-        
+
         # --
         self.available_colors = ["orange", "blue", "green", "violet"]
 
         self.subplots = subplots
         self.make_figure()
 
-    def baseline_at_point(self, key_values, one_trial=False):
-        baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == key_values[0]) & (self.full_sample_df[self.key2] == key_values[1])]
+    @staticmethod
+    def simulate_at_point(keys, sizes, model=recipes.Model()):
+        # keys = dictionary {key: value}
+        hsar = keys['hsar']
+        trait_dict = {}
+        for k,v in keys:
+            key_prefix = k[:3]
+            assert key_prefix in ['sus', 'inf']
+            if 'mass'  in k: key_type = 'mass'
+            elif 'var' in k: key_type = 'variance'
+            else: assert False
+
+            if key_type == 'mass':
+                variance = constants.mass_to_variance(v)
+                trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=variance)
+            else:
+                trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=v)
+
+        beta = utilities.implicit_solve_for_beta(hsar, trait_dict['sus'], trait_dict['inf'])
+
+        df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'])
+        for k,v in keys:
+            df[k] = np.float("{0:.2f}".format(v))
+
+        return df
+
+    def baseline_at_point(self, baseline_coordinates, one_trial=False):
+        if self.full_sample_df is None:
+            # in this case we have to simulate
+            unique_sizes = self.pool_df.reset_index()['sizes'].unique()
+            assert len(unique_sizes) == 1
+            sizes = {unique_sizes[0]: self.simulation_sample_size}
+            baseline_df = self.simulate_at_point(baseline_coordinates, sizes)
+            import pdb; pdb.set_trace()
+            return baseline_df
+
+        baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
 
         try: # for legacy dfs that don't always include a trial column
             print(baseline_df["trialnum"])
@@ -171,7 +205,7 @@ class InteractiveFigure:
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        self.sample_df = self.sample_df = self.baseline_at_point((parameter_coordinates[self.key1], parameter_coordinates[self.key2]), one_trial=True)
+        self.sample_df = self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
 
         print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
@@ -521,12 +555,15 @@ class OnSeabornAxes(OnAxesSubfigure):
         return patch
 
 class ContourPlot(OnMatplotlibAxes):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
         self.df = df.unstack()
         self.stacked_df = df
 
         #alias of df
         self.Z = self.df
+
+        #self.Z.columns = np.linspace(0.2, 0.9, 8)
+        #self.Z.index = np.linspace(0.2, 0.9, 8)
 
         OnMatplotlibAxes.__init__(self, ax, interactive)
         
@@ -540,7 +577,7 @@ class ContourPlot(OnMatplotlibAxes):
     def draw(self):
         Subfigure.draw(self)
 
-        #X,Y = np.meshgrid(self.Z.columns, self.Z.index[::-1])
+        #X,Y = np.meshgrid(np.linspace(0.2, 0.9, 8), np.linspace(0.2, 0.9, 8))
         X,Y = np.meshgrid(self.Z.columns, self.Z.index)
         contourf = plt.contourf(X, Y, self.Z, **self.kwargs)
 
@@ -559,7 +596,7 @@ class ContourPlot(OnMatplotlibAxes):
         plt.ylabel(self.interactive.key1)
 
         plt.sca(self.ax)
-        self.draw_patches()
+        #self.draw_patches()
 
 class Heatmap(OnSeabornAxes):
     def __init__(self, ax, interactive, df, title, scatter_stars=True):
