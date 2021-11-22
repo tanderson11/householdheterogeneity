@@ -77,7 +77,10 @@ class InteractiveFigure:
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
-            self.logl_df = likelihood.logl_from_data(pool_df, self.sample_df, keys)
+            if self.full_sample_df is None:
+                self.logl_df = likelihood.logl_from_data(pool_df, self.sample_df, keys)
+            else:
+                self.logl_df = likelihood.logl_from_data(pool_df, self.full_sample_df, keys)
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
