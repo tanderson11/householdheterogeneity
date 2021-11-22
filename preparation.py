@@ -25,8 +25,8 @@ def load_dataframe(path, filename):
 #    df = pq.read_table(os.path.join(path, filename)).to_pandas()
 
 
-def load_plot_keys(path):
-    with open(os.path.join(path, "keys.json"), 'r') as f:
+def load_plot_keys(path, filename="keys.json"):
+    with open(os.path.join(path, filename), 'r') as f:
         keys = json.load(f)
     
     return keys
@@ -49,21 +49,62 @@ def save_df(path, filename, df):
 
 if __name__ == "__main__":
     #directory = "/Users/thayer/covid_households/experiments/big-region-n-fold-all-size-6-09-27-02_59-sus-bimodal/"
-
+    baseline_values = (0.3, 1.0)
     directory = sys.argv[1]
-    df = load_dataframe(directory, "pool_df-inf-var-0.00.parquet")
-    sample_df, pool_df = split_to_sample_and_pool(df, sample_size=250)
+    #plotting_keys = load_plot_keys(directory)
 
-    plotting_keys = load_plot_keys(directory)
+    # GENEVA
+
+    # INF VAR VS HSAR
+    #plotting_keys = ["hsar", "inf_var"]
+    #df = load_dataframe(directory, "pool_df-sus_var-0.000.parquet")
+    
+    # SUS VAR VS HSAR
+    #plotting_keys = load_plot_keys(directory, "inner_keys.json")
+    #plotting_keys = ["hsar", "sus_var"]
+    #df = load_dataframe(directory, "pool_df-inf_var-0.000.parquet")
+
+    # SUS VAR VS INF VAR
+    plotting_keys = ["sus_var", "inf_var"]
+
+    #df = load_dataframe(directory, "pool_df-hsar-0.20.parquet")
+    #df = load_dataframe(directory, "pool_df-hsar-0.320.parquet")
+    df = load_dataframe(directory, "pool_df-hsar-0.310.parquet")
+    print("UNIQUE INF VAR:", df['inf_var'].unique())
+    print("UNIQUE SUS VAR:", df['sus_var'].unique())
+
+    #df = load_dataframe(directory, "pool_df-hsar-0.500.parquet")
+    #
+    baseline_values = (0., 0.)
+    
+    
+    sample_df, pool_df = split_to_sample_and_pool(df, sample_size=1000)
+    use_by_mass_params = True
+    if use_by_mass_params:
+        # hardcoded axes for a minute
+        #axis = np.linspace(0.2, 0.9, 8)
+        import pdb; pdb.set_trace()
+        axis = np.linspace(0.2, 0.9, 22)
+        axis = np.array([float("{:.2f}".format(x)) for x in axis])
+        baseline_values = (0.2, 0.2)
+        sample_df['sus_mass'] = np.array(list(axis) * int(len(sample_df['sus_var'])/len(axis)))
+        sample_df['inf_mass'] = np.array([[x] * len(axis) for x in axis] * int(len(sample_df['sus_var'])/(len(axis)**2))).flatten()
+        sample_df = sample_df.drop(['sus_var', 'inf_var'], axis=1)
+        pool_df['sus_mass'] = np.array(list(axis) * int(len(pool_df['sus_var'])/len(axis)))
+        pool_df['inf_mass'] = np.array([[x] * len(axis) for x in axis] * int(len(pool_df['sus_var'])/(len(axis)**2))).flatten()
+        pool_df = pool_df.drop(['sus_var', 'inf_var'], axis=1)
+        plotting_keys = ["sus_mass", "inf_mass"]
+
     print(plotting_keys)
-    plotting_keys = ["hsar", "sus_var"]
+    
     #dump_keys(directory, plotting_keys)
 
     #logl_df = load_dataframe(directory, "pool_df-inf-var-0.00_logl_df.parquet")
     logl_df = likelihood.logl_from_data(pool_df, sample_df, plotting_keys)
-    save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
+    #save_df(directory, "pool_df-inf-var-0.00_logl_df.parquet", logl_df)
 
-    figures = np.array(["confidence heatmap", "many confidence heatmap", "logl contour plot", "trait histograms"]).reshape((2,2))
+    #figures = np.array(["confidence heatmap", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
+    figures = np.array(["logl contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
 
-    fancy_plotting.InteractiveFigure(pool_df, sample_df, logl_df, plotting_keys, figures, baseline_values=(0.3, 1.0))
+    fancy_plotting.InteractiveFigure(pool_df, sample_df, logl_df, plotting_keys, figures, baseline_values=baseline_values)
 

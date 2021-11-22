@@ -19,6 +19,8 @@ import json
 import itertools
 import pyarrow as pa
 import pyarrow.parquet as pq
+import matplotlib.ticker as ticker
+import constants
 
 EMPIRICAL_TRIAL_ID = -1
 
@@ -228,13 +230,13 @@ def subfigure_factory(plot_type, ax, interactive):
         trialnumber = 0
         logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
         title = ""
-        subfigure = InOrOutConfidenceIntervalHeatmap(ax, interactive, logl_df, title, scatter_stars=False)
+        subfigure = InOrOutConfidenceIntervalHeatmap(ax, interactive, logl_df, title)
 
     elif plot_type == 'many confidence heatmap':
         trialnumber = 0
         logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
-        title = ""
-        subfigure = ManyMasksConfidenceHeatmap(ax, interactive, logl_df, title, scatter_stars=False)
+        title = "Membership in cumulative probability density contours"
+        subfigure = ManyMasksConfidenceHeatmap(ax, interactive, logl_df, title)
 
     elif plot_type == 'logl contour plot':
         trialnumber=0
@@ -299,7 +301,7 @@ class TraitHistograms(SelectionDependentSubfigure):
     def draw(self):
         SelectionDependentSubfigure.draw(self)
 
-        possible_traits = ["sus_var", "inf_var"]
+        possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass"]
         if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
             print("WARNING: both keys are traits. Graphing only key2")
 
@@ -313,7 +315,13 @@ class TraitHistograms(SelectionDependentSubfigure):
         bins = np.linspace(0., 6., 30)
         for p in self.interactive.selected_points:
             #trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
-            trait=traits.GammaTrait(mean=1.0, variance=p.parameter_coordinates[graph_key])
+            parameter_value = p.parameter_coordinates[graph_key]
+            if graph_key == 'sus_var' or graph_key == 'inf_var':
+                trait=traits.GammaTrait(mean=1.0, variance=parameter_value)
+            elif graph_key == 'sus_mass' or graph_key == 'inf_mass':
+                variance = constants.mass_to_variance[parameter_value]
+                #variance = utilities.find_gamma_target_variance(80, parameter_value)
+                trait=traits.GammaTrait(mean=1.0, variance=variance)
 
             trait.plot(samples=10000, color=p.color, alpha=0.5, bins=bins)
         plt.title("Gamma distributed {0}".format(graph_key))
@@ -326,16 +334,23 @@ class InfectionHistogram(SelectionDependentSubfigure):
         SelectionDependentSubfigure.draw(self)
 
         color_dict = {}
+        average_dict = {}
         restrictions = []
         for p in self.interactive.selected_points:
             labels, restriction = self.df_at_point(p)
             color_dict[tuple(labels)] = p.color
-
+            average_dict[tuple(labels)] = restriction['infections'].mean()
             restrictions.append(restriction)
 
         restricted_df = pd.concat(restrictions)
-        utilities.bar_chart_new(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
-
+        df,ax = utilities.bar_chart_new(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
+        offsets = (0.03*i for i in range(0, len(restrictions)))
+        #import pdb; pdb.set_trace()
+        for labels, average in average_dict.items():
+            offset = next(offsets)
+            #import pdb; pdb.set_trace()
+            ax.text(0.25, 0.28-offset, f"average={average:.2f}", size=9, color=color_dict[labels])
+        
 class OnAxesSubfigure(Subfigure):
     '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
     def __init__(self, ax, interactive):
@@ -589,16 +604,22 @@ class ConfidenceHeatmap(Heatmap):
 
     def draw(self):
         Subfigure.draw(self)
-        cmap = sns.color_palette("mako", self.n_masks)
+        cmap = sns.color_palette("Purples", self.n_masks)
         #cmap.set_bad("black") 
         in_no_group_mask = np.where(self.df==0., True, False)
         ax = sns.heatmap(self.df, mask=in_no_group_mask, ax=self.ax, cbar=True, cmap=cmap) # need .unstack() here if we don't do it by default
         ax.invert_yaxis()
-        ax.set_facecolor("orange")
+        #ax.set_facecolor("wheat")
         colorbar = ax.collections[0].colorbar
         r = colorbar.vmax - colorbar.vmin 
         colorbar.set_ticks([colorbar.vmin + r / self.n_masks * (0.5 + i) for i in range(self.n_masks)])
         colorbar.set_ticklabels(list(self.labels))
+        colorbar.ax.invert_yaxis()
+
+        #ax.xaxis.set_major_locator(ticker.MultipleLocator(9))
+        #plt.yticks([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+        #ax.set_xticks(range(len(self.df)))
+        #ax.set_xticklabels([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
 
         if self.scatter_stars:
             self.scatter_point_estimates()
@@ -608,7 +629,7 @@ class ConfidenceHeatmap(Heatmap):
         self.draw_patches()
 
 class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
-    def __init__(self, ax, interactive, df, title, scatter_stars=False):
+    def __init__(self, ax, interactive, df, title, scatter_stars=True):
         super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
         #import pdb; pdb.set_trace()
         #self.df = self.normalize_probability(self.df.unstack()).unstack().T
@@ -618,7 +639,7 @@ class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
         #import pdb; pdb.set_trace()
 
 class ManyMasksConfidenceHeatmap(ConfidenceHeatmap):
-    def __init__(self, ax, interactive, df, title, scatter_stars=False):
+    def __init__(self, ax, interactive, df, title, scatter_stars=True):
         super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
         self.df = self.find_confidence_mask(self.df.unstack(), percentiles=(0.99, 0.95, 0.90, 0.85)).unstack().T
         self.n_masks = 4

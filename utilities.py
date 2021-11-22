@@ -116,7 +116,7 @@ def find_gamma_target_variance(percentile, target_fraction, method='fsolve'):
         root = scipy.optimize.least_squares(func, x0=0., bounds=(0., 100))
     elif method == 'fsolve':
         root = scipy.optimize.fsolve(func, x0=0.)
-    return root
+    return root[0]
 
 if __name__ == '__main__':
     import traits

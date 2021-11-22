@@ -11,16 +11,17 @@ class Trait(abc.ABC):
         output = np.array(self(shaped_array))
         sample_mean = np.mean(output)
         sample_var = np.var(output)
+        sample_median = np.median(output)
         ninetieth_percentile = np.percentile(output, 90)
 
         plt.hist(output, **kwargs)
-        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}\n 90th percentile {3:.2f}".format(self, sample_mean, sample_var, ninetieth_percentile))
+        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}\n median {3:.2f}\n 90th percentile {3:.2f}".format(self, sample_mean, sample_var, sample_median, ninetieth_percentile))
         plt.xlabel("relative magnitude")
         plt.ylabel("# people")
 
-        plt.axvline(np.percentile(output, 10))
-        plt.axvline(np.percentile(output, 50))
-        plt.axvline(np.percentile(output, 90))
+        #plt.axvline(np.percentile(output, 10))
+        #plt.axvline(np.percentile(output, 50))
+        #plt.axvline(np.percentile(output, 90))
         return sample_mean, sample_var
 
     @abc.abstractmethod
@@ -56,11 +57,7 @@ class GammaTrait(Trait):
         if self.variance == 0:
             return is_occupied * self.mean
         else:
-            values = np.full_like(is_occupied, 0., dtype=float)
-            filtered = is_occupied[is_occupied != False]
-            # reassign values based on gamma dist
-            filtered = np.random.gamma(self.mean**2/self.variance, scale=self.variance/self.mean, size=filtered.shape)
-            values[is_occupied != False] = filtered
+            values = np.where(is_occupied, np.random.gamma(self.mean**2/self.variance, scale=self.variance/self.mean, size=is_occupied.shape), 0)
             #import pdb; pdb.set_trace()
             return values
 
@@ -91,9 +88,10 @@ class BiModalTrait(Trait):
 
         return values
 
-#t = GammaTrait(mean=1.0, variance=1.0)
-#t.plot(samples=100)
-#plt.show()
+if __name__ == '__main__':
+    t = GammaTrait(mean=1.0, variance=1.0)
+    t.plot(samples=1000)
+    plt.show()
 
-#BiModalTrait(2.6).plot(samples=1000)
-#plt.show()
+    #BiModalTrait(2.6).plot(samples=1000)
+    #plt.show()
