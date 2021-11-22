@@ -48,16 +48,17 @@ def find_most_likely(logl_df, keys):
     return baseline_1, baseline_2
 
 class InteractiveFigure:
-    def __init__(self, pool_df, keys, subplots, full_sample_df=None, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False, simulation_sample_size=100):
+    def __init__(self, pool_df, keys, subplots, full_sample_df=None, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False, simulation_sample_size=100, unspoken_parameters={}):
         self.is_empirical = is_empirical
         self.pool_df = pool_df
         self.key1, self.key2 = keys
 
         self.full_sample_df = full_sample_df
         self.simulation_sample_size = simulation_sample_size
+        self.unspoken_parameters = unspoken_parameters
 
-        self.logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
         if self.is_empirical:
+            self.logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
                         
@@ -76,6 +77,7 @@ class InteractiveFigure:
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
+            self.logl_df = likelihood.logl_from_data(pool_df, self.sample_df, keys)
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
@@ -94,17 +96,18 @@ class InteractiveFigure:
     @staticmethod
     def simulate_at_point(keys, sizes, model=recipes.Model()):
         # keys = dictionary {key: value}
-        hsar = keys['hsar']
+        hsar = keys.pop('hsar')
         trait_dict = {}
-        for k,v in keys:
+        #import pdb; pdb.set_trace()
+        for k,v in keys.items():
             key_prefix = k[:3]
-            assert key_prefix in ['sus', 'inf']
+            assert key_prefix in ['sus', 'inf'], k
             if 'mass'  in k: key_type = 'mass'
             elif 'var' in k: key_type = 'variance'
             else: assert False
 
             if key_type == 'mass':
-                variance = constants.mass_to_variance(v)
+                variance = constants.mass_to_variance[v]
                 trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=variance)
             else:
                 trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=v)
@@ -112,7 +115,7 @@ class InteractiveFigure:
         beta = utilities.implicit_solve_for_beta(hsar, trait_dict['sus'], trait_dict['inf'])
 
         df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'])
-        for k,v in keys:
+        for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
 
         return df
@@ -120,11 +123,11 @@ class InteractiveFigure:
     def baseline_at_point(self, baseline_coordinates, one_trial=False):
         if self.full_sample_df is None:
             # in this case we have to simulate
-            unique_sizes = self.pool_df.reset_index()['sizes'].unique()
+            unique_sizes = self.pool_df.reset_index()['size'].unique()
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
-            baseline_df = self.simulate_at_point(baseline_coordinates, sizes)
-            import pdb; pdb.set_trace()
+            keys = {**self.unspoken_parameters, **baseline_coordinates}
+            baseline_df = self.simulate_at_point(keys, sizes)
             return baseline_df
 
         baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
@@ -205,8 +208,10 @@ class InteractiveFigure:
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        self.sample_df = self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
-
+        #import pdb; pdb.set_trace()
+        self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
+        if self.full_sample_df is None:
+            self.logl_df = likelihood.logl_from_data(self.pool_df, self.sample_df, [self.key1, self.key2])
         print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 

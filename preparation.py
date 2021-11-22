@@ -80,13 +80,12 @@ if __name__ == "__main__":
     #df = load_dataframe(directory, "pool_df-hsar-0.20.parquet")
     #df = load_dataframe(directory, "pool_df-hsar-0.320.parquet")
     df = load_dataframe(directory, "pool_df-hsar-0.250.parquet")
+    unspoken_parameters = {'hsar':0.250}
     print("UNIQUE INF VAR:", df['inf_var'].unique())
     print("UNIQUE SUS VAR:", df['sus_var'].unique())
 
     #df = load_dataframe(directory, "pool_df-hsar-0.500.parquet")
-    #
-    baseline_values = (0., 0.)
-    
+    #    
     
     sample_df, pool_df = split_to_sample_and_pool(df, sample_size=1000)
     use_by_mass_params = True
@@ -116,5 +115,5 @@ if __name__ == "__main__":
     figures = np.array(["logl contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
 
     #fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=sample_df)
-    fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=None)
+    fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=None, unspoken_parameters=unspoken_parameters)
 
