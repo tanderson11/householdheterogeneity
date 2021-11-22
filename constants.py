@@ -41,3 +41,9 @@ numpy_scale_vec = np.array(scale_vec)
 numpy_mean_vec = np.array(mean_vec)
 
 numpy_stationary_states = np.array(inf_waiting_states)
+
+# For our "Bernie Sanders" parameters, we're looking at the total fraction of the trait contained in the top 20% of trait-havers. How do we convert that back to actual variance?
+# If we want to do it quickly, we can use this magic lookup table as a hard-coded record of our best solutions
+by_mass_axis = np.linspace(0.2, 0.9, 22)
+variance_axis = np.array([0.0, 0.013, 0.051, 0.109, 0.188, 0.286, 0.403, 0.538, 0.694, 0.870, 0.107, 1.294, 1.554, 1.840, 2.172, 2.544, 2.980, 3.348, 4.070, 4.810, 5.745, 6.911])
+mass_to_variance = {float(f"{x:.2f}"):y for x,y in zip(by_mass_axis, variance_axis)}
