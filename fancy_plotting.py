@@ -48,7 +48,20 @@ def find_most_likely(logl_df, keys):
     return baseline_1, baseline_2
 
 class InteractiveFigure:
-    def __init__(self, pool_df, keys, subplots, full_sample_df=None, is_empirical=False, baseline_values=None, recompute_logl=False, empirical_path=False, simulation_sample_size=100, unspoken_parameters={}):
+    def __init__(
+            self,
+            pool_df,
+            keys,
+            subplots,
+            full_sample_df=None,
+            is_empirical=False,
+            baseline_values=None,
+            recompute_logl=False,
+            empirical_path=False,
+            simulation_sample_size=100,
+            unspoken_parameters={},
+            patch_palette='sequential'):
+
         self.is_empirical = is_empirical
         self.pool_df = pool_df
         self.key1, self.key2 = keys
@@ -77,6 +90,8 @@ class InteractiveFigure:
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
+            print("SAMPLE_DF:\n", self.sample_df)
+            print("POOL_DF:\n", self.pool_df)
             if self.full_sample_df is None:
                 self.logl_df = likelihood.logl_from_data(pool_df, self.sample_df, keys)
             else:
@@ -85,13 +100,17 @@ class InteractiveFigure:
 
         self.sample_model_dict = {}
 
-        self.baseline_color = "red"
+        self.baseline_color = "orange"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points = [self.baseline_point]
 
         # --
-        self.available_colors = ["orange", "blue", "green", "violet"]
+        if patch_palette == 'categorical':
+            self.available_colors = ["red", "blue", "green", "violet"]
+        elif patch_palette == 'sequential':
+            cmap = plt.get_cmap("Oranges")
+            self.available_colors = [cmap(x) for x in np.linspace(0.2, 0.6, 5)]
 
         self.subplots = subplots
         self.make_figure()
@@ -99,10 +118,18 @@ class InteractiveFigure:
     @staticmethod
     def simulate_at_point(keys, sizes, model=recipes.Model()):
         # keys = dictionary {key: value}
-        hsar = keys.pop('hsar')
+        beta = None
+        try:
+            hsar = keys['hsar']
+        except KeyError:
+            beta = keys['beta']
         trait_dict = {}
+
         #import pdb; pdb.set_trace()
         for k,v in keys.items():
+            # want just the traits
+            if k in ['hsar', 'beta']:
+                continue
             key_prefix = k[:3]
             assert key_prefix in ['sus', 'inf'], k
             if 'mass'  in k: key_type = 'mass'
@@ -115,7 +142,9 @@ class InteractiveFigure:
             else:
                 trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=v)
 
-        beta = utilities.implicit_solve_for_beta(hsar, trait_dict['sus'], trait_dict['inf'])
+        if beta is None: # ie: hsar was provided
+            beta = utilities.implicit_solve_for_beta(hsar, trait_dict['sus'], trait_dict['inf'])
+            print(beta)
 
         df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'])
         for k,v in keys.items():
@@ -283,14 +312,11 @@ def subfigure_factory(plot_type, ax, interactive):
     elif plot_type == 'logl contour plot':
         trialnumber=0
         # unstacked for Z
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
-        
-        # logl_df -> pdf
-        # pdf -> levels at 95%, 80%, 65%, 50%
-        #import pdb; pdb.set_trace()
-        #unstacked_logl = logl_df.unstack()
-        #log_odds = (unstacked_logl) - (unstacked_logl.sum().sum() - unstacked_logl)
-
+        logl_df = interactive.logl_df.loc[
+            interactive.baseline_point.parameter_coordinates[interactive.key1],
+            interactive.baseline_point.parameter_coordinates[interactive.key2],
+            trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+        print(logl_df)
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'average heatmap':
@@ -345,11 +371,12 @@ class TraitHistograms(SelectionDependentSubfigure):
 
         possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass"]
         if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
-            print("WARNING: both keys are traits. Graphing only key2")
+            print("WARNING: both keys are traits. Graphing only key1")
 
         if self.interactive.key1 in possible_traits:
             graph_key = self.interactive.key1
-        elif self.interactive.key2 in possible_traits:
+        #elif self.interactive.key2 in possible_traits:
+        if self.interactive.key2 in possible_traits:
             graph_key = self.interactive.key2
         else:
             return None
@@ -449,9 +476,9 @@ class OnAxesSubfigure(Subfigure):
             y_mins.append(y_min)
 
             if trial == EMPIRICAL_TRIAL_ID:
-                colors.append("red")
+                colors.append("orange")
             else:
-                colors.append("blue")
+                colors.append("orange")
 
         self.ax.scatter(x_mins, y_mins, s=4, c=colors, **kwargs) 
 
@@ -563,7 +590,7 @@ class OnSeabornAxes(OnAxesSubfigure):
         return patch
 
 class ContourPlot(OnMatplotlibAxes):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=False):
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
         self.df = df.unstack()
         self.stacked_df = df
 
@@ -604,7 +631,7 @@ class ContourPlot(OnMatplotlibAxes):
         plt.ylabel(self.interactive.key1)
 
         plt.sca(self.ax)
-        #self.draw_patches()
+        self.draw_patches()
 
 class Heatmap(OnSeabornAxes):
     def __init__(self, ax, interactive, df, title, scatter_stars=True):
@@ -659,7 +686,7 @@ class ConfidenceHeatmap(Heatmap):
         r = colorbar.vmax - colorbar.vmin 
         colorbar.set_ticks([colorbar.vmin + r / self.n_masks * (0.5 + i) for i in range(self.n_masks)])
         colorbar.set_ticklabels(list(self.labels))
-        colorbar.ax.invert_yaxis()
+        #colorbar.ax.invert_yaxis()
 
         #ax.xaxis.set_major_locator(ticker.MultipleLocator(9))
         #plt.yticks([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])

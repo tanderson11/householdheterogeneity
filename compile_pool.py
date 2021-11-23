@@ -33,6 +33,7 @@ outer_key = key1
 
 # For the calculations by mass
 size_parts = ["high-sizes", "low-sizes-minus-5", "size-5"]
+#size_parts = ["high-sizes-extra", "low-sizes-extra"]
 #size_parts = ["low-sizes-minus-5"]
 
 
