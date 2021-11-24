@@ -2,6 +2,7 @@
 import importlib
 
 from numpy.lib import percentile
+from pandas.tseries import offsets
 import population
 import likelihood
 import utilities
