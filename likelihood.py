@@ -45,8 +45,11 @@ def compute_frequencies(comparison, grouping):
         frequencies = frequencies[~duplicated]
     return frequencies
 
-def logl_from_data(synthetic, empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"]):
-    frequencies = frequencies_from_synthetic(synthetic, parameter_keys, household_keys=household_keys)
+def logl_from_data(synthetic, empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"], frequency_df=None):
+    if frequency_df is not None:
+        frequencies = frequency_df
+    else:
+        frequencies = frequencies_from_synthetic(synthetic, parameter_keys, household_keys=household_keys)
     counts = counts_from_empirical(empirical, parameter_keys, baseline_only_keys=baseline_only_keys, household_keys=household_keys)
     logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, baseline_only_keys=baseline_only_keys, household_keys=household_keys)
     return logl

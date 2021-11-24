@@ -54,6 +54,7 @@ class InteractiveFigure:
             keys,
             subplots,
             full_sample_df=None,
+            frequency_df=None,
             is_empirical=False,
             baseline_values=None,
             recompute_logl=False,
@@ -63,7 +64,15 @@ class InteractiveFigure:
             patch_palette='sequential'):
 
         self.is_empirical = is_empirical
-        self.pool_df = pool_df
+        if pool_df is not None:
+            self.frequency_df = likelihood.frequencies_from_synthetic(pool_df, keys)
+        else:
+            assert frequency_df is not None
+            print(frequency_df)
+            self.frequency_df = frequency_df
+        
+        self.reset_freqs = self.frequency_df.reset_index()
+        self.keys = keys
         self.key1, self.key2 = keys
 
         self.full_sample_df = full_sample_df
@@ -71,7 +80,7 @@ class InteractiveFigure:
         self.unspoken_parameters = unspoken_parameters
 
         if self.is_empirical:
-            self.logl_df = likelihood.logl_from_data(pool_df, full_sample_df, keys)
+            self.logl_df = likelihood.logl_from_data(None, full_sample_df, keys, frequency_df=self.frequency_df)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
                         
@@ -86,16 +95,15 @@ class InteractiveFigure:
             # -- Selecting the location of the baseline point --
             #import pdb; pdb.set_trace()
             if baseline_values is None:
-                baseline_coordinates = {self.key1:self.pool_df[self.key1].iloc[0], self.key2:self.pool_df[self.key2].iloc[0]}
+                baseline_coordinates = {self.key1:self.reset_freqs[self.key1].iloc[0], self.key2:self.reset_freqs[self.key2].iloc[0]}
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
             print("SAMPLE_DF:\n", self.sample_df)
-            print("POOL_DF:\n", self.pool_df)
             if self.full_sample_df is None:
-                self.logl_df = likelihood.logl_from_data(pool_df, self.sample_df, keys)
+                self.logl_df = likelihood.logl_from_data(None, self.sample_df, keys, frequency_df=self.frequency_df)
             else:
-                self.logl_df = likelihood.logl_from_data(pool_df, self.full_sample_df, keys)
+                self.logl_df = likelihood.logl_from_data(None, self.full_sample_df, keys, frequency_df=self.frequency_df)
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
@@ -155,7 +163,7 @@ class InteractiveFigure:
     def baseline_at_point(self, baseline_coordinates, one_trial=False):
         if self.full_sample_df is None:
             # in this case we have to simulate
-            unique_sizes = self.pool_df.reset_index()['size'].unique()
+            unique_sizes = self.frequency_df.reset_index()['size'].unique()
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
@@ -243,7 +251,7 @@ class InteractiveFigure:
         #import pdb; pdb.set_trace()
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
         if self.full_sample_df is None:
-            self.logl_df = likelihood.logl_from_data(self.pool_df, self.sample_df, [self.key1, self.key2])
+            self.logl_df = likelihood.logl_from_data(None, self.sample_df, [self.key1, self.key2], frequency_df=self.frequency_df)
         print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
@@ -319,16 +327,6 @@ def subfigure_factory(plot_type, ax, interactive):
         print(logl_df)
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
-    elif plot_type == 'average heatmap':
-        average_df = interactive.pool_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())#.unstack() # unstack might need to come back, but I removed it because it was giving an error
-        title = "Average infections per household"
-        subfigure = Heatmap(ax, interactive, average_df, title)
-
-    elif plot_type == 'average contour plot':
-        average_df = interactive.pool_df.groupby([interactive.key1,interactive.key2])["infections"].apply(lambda g: g.mean())
-        #print("AVERAGE DF\n", average_df, average_df.unstack())
-        subfigure = ContourPlot(ax, interactive, average_df, "Contours of average number of infections with default levels", color_label="average infections")
-
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, interactive)
 
@@ -351,15 +349,17 @@ class Subfigure:
         print("clearing", type(self))
 
 class SelectionDependentSubfigure(Subfigure):
-    def df_at_point(self, point):
+    def frequency_df_at_point(self, point):
         labels = [point.parameter_coordinates[self.interactive.key1], point.parameter_coordinates[self.interactive.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
-            restriction = self.interactive.sample_df
+            restriction = likelihood.frequencies_from_synthetic(self.interactive.sample_df, self.interactive.keys)
+            #restriction = self.interactive.sample_df #old
         else: # otherwise, we select only the comparison distributions at the relevant points
-            masks = [self.interactive.pool_df[self.interactive.key1] == labels[0], self.interactive.pool_df[self.interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
+            masks = [self.interactive.reset_freqs[self.interactive.key1] == labels[0], self.interactive.reset_freqs[self.interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
             mask = functools.reduce(operator.and_, masks)
-            restriction = self.interactive.pool_df[mask]
-
+            mask.index = self.interactive.frequency_df.index
+            restriction = self.interactive.frequency_df[mask]
+        restriction.name = 'freq'
         return labels, restriction
 
 class TraitHistograms(SelectionDependentSubfigure):
@@ -404,20 +404,32 @@ class InfectionHistogram(SelectionDependentSubfigure):
 
         color_dict = {}
         average_dict = {}
+        represented_coordinates = set()
         restrictions = []
+        #import pdb; pdb.set_trace()
         for p in self.interactive.selected_points:
-            labels, restriction = self.df_at_point(p)
+            labels, restriction = self.frequency_df_at_point(p)
             color_dict[tuple(labels)] = p.color
-            average_dict[tuple(labels)] = restriction['infections'].mean()
-            restrictions.append(restriction)
+            reset_restriction = restriction.reset_index()
+            #average_dict[tuple(labels)] = restriction['infections'].mean() #old
+            average_dict[tuple(labels)] = (reset_restriction['infections'] * reset_restriction['freq']).sum()
+            if p.is_baseline:
+                baseline_restriction = restriction
+                baseline_coordinates = tuple(labels)
+            else:
+                restrictions.append(restriction)
+                represented_coordinates.add(tuple(labels))
+        print(represented_coordinates)
+        print(baseline_coordinates)
+        # only display the baseline if we haven't separately chosen to view that cell
+        if baseline_coordinates not in represented_coordinates:
+            restrictions.append(baseline_restriction)
 
         restricted_df = pd.concat(restrictions)
-        df,ax = utilities.bar_chart_new(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
+        ax = utilities.simple_bar_chart(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
         offsets = (0.03*i for i in range(0, len(restrictions)))
-        #import pdb; pdb.set_trace()
         for labels, average in average_dict.items():
             offset = next(offsets)
-            #import pdb; pdb.set_trace()
             ax.text(0.25, 0.28-offset, f"average={average:.2f}", size=9, color=color_dict[labels])
         
 class OnAxesSubfigure(Subfigure):

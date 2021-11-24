@@ -6,6 +6,14 @@ import traits
 
 ### Graphing utility functions
 
+def simple_bar_chart(df, key=None, **kwargs):
+    print(df)
+    #import pdb; pdb.set_trace()
+    unstacked = df.unstack(list(range(len(key))))
+    print(unstacked)
+    ax = unstacked.plot.bar(**kwargs)
+    return ax
+
 def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwargs):
     grouped = df.groupby(key+grouping)
 
@@ -19,7 +27,7 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     #counted_unstacked = counts.unstack(level=list(range(len(key))))
     #import pdb; pdb.set_trace()
     ax = counted_unstacked.plot.bar(**kwargs)
-    return counted_unstacked, ax
+    return ax
     
 def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])

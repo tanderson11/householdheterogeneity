@@ -48,7 +48,7 @@ def save_df(path, filename, df):
 
 def extract_slice(frequency_path, key_ranges):
     frequency_df = pq.read_table(frequency_path).to_pandas().squeeze()
-    #old_index = frequency_df.index.names
+    old_index = frequency_df.index.names
     reset = frequency_df.reset_index()
 
     for k,target_range in key_ranges.items():
@@ -57,7 +57,8 @@ def extract_slice(frequency_path, key_ranges):
         satisfying = (reset[k] <= target_range[1]) & (reset[k] >= target_range[0])
         reset = reset[satisfying]
     
-    #reset.set_index(old_index, inplace=True)
+    reset.set_index(old_index, inplace=True)
+    reset = reset.squeeze()
     return reset
 
 if __name__ == "__main__":
@@ -92,7 +93,7 @@ if __name__ == "__main__":
     
     sample_df, pool_df = split_to_sample_and_pool(df, sample_size=1000)
 
-    use_by_mass_params = False
+    use_by_mass_params = True
     if use_by_mass_params:
         # hardcoded axes for a minute
         axis = np.linspace(0.2, 0.9, 8)
@@ -119,4 +120,7 @@ if __name__ == "__main__":
     figures = np.array(["logl contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
     print(pool_df)
     #fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, full_sample_df=sample_df)
-    fancy_plotting.InteractiveFigure(pool_df, plotting_keys, figures, unspoken_parameters={'hsar':0.250})
+
+    # for testing without pool df and only using frequency_df
+    frequency_df = likelihood.frequencies_from_synthetic(pool_df, ['sus_mass', 'inf_mass'])
+    fancy_plotting.InteractiveFigure(None, plotting_keys, figures, frequency_df=frequency_df, unspoken_parameters={'hsar':0.250})
