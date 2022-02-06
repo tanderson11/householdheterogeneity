@@ -17,6 +17,24 @@ git_token.py
 # .hdf data files saved by pandas
 *.hdf
 
+# various data folders
+mass_produced/
+final_push/
+empirical/
+slides/
+
+# logs
+*.log
+
+# DS Store
+.DS_Store
+
+# __init__
+__init__.py
+
+# Github personal access token
+pat.txt
+
 # experiments folder
 experiments/
 
