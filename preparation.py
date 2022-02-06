@@ -46,9 +46,10 @@ def save_df(path, filename, df):
     parquet_df = pa.Table.from_pandas(pd.DataFrame(df))
     pq.write_table(parquet_df, os.path.join(path, filename))
 
-def extract_slice(frequency_path, key_ranges):
+def extract_slice(frequency_path, key_ranges, index=None):
     frequency_df = pq.read_table(frequency_path).to_pandas().squeeze()
-    old_index = frequency_df.index.names
+    if index is None:
+        index = frequency_df.index.names
     reset = frequency_df.reset_index()
 
     for k,target_range in key_ranges.items():
@@ -57,12 +58,11 @@ def extract_slice(frequency_path, key_ranges):
         satisfying = (reset[k] <= target_range[1]) & (reset[k] >= target_range[0])
         reset = reset[satisfying]
     
-    reset.set_index(old_index, inplace=True)
+    reset.set_index(index, inplace=True)
     reset = reset.squeeze()
     return reset
 
 if __name__ == "__main__":
-    baseline_values = (0.3, 1.0)
     directory = sys.argv[1]
 
     # GENEVA

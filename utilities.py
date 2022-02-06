@@ -6,9 +6,10 @@ import traits
 
 ### Graphing utility functions
 
-def simple_bar_chart(df, key=None, **kwargs):
+def simple_bar_chart(df, key=None, drop_level=None, **kwargs):
     print(df)
     #import pdb; pdb.set_trace()
+    
     unstacked = df.unstack(list(range(len(key))))
     print(unstacked)
     ax = unstacked.plot.bar(**kwargs)
@@ -80,7 +81,7 @@ def sample_hsar_no_state_lengths(beta, trait, N=20000):
 def sample_hsar_with_state_lengths(beta, sus, inf, N=20000):
     sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
     inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    T = constants.mean_vec[constants.STATE.infectious]
+    #T = constants.mean_vec[constants.STATE.infectious]
 
     from torch_forward_simulation import torch_state_length_sampler
     length_draws = np.array(torch_state_length_sampler(constants.STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t

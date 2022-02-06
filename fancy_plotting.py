@@ -1,5 +1,6 @@
 # Initialization
 import importlib
+from typing import NamedTuple
 
 from numpy.lib import percentile
 from pandas.tseries import offsets
@@ -62,7 +63,10 @@ class InteractiveFigure:
             empirical_path=False,
             simulation_sample_size=100,
             unspoken_parameters={},
-            patch_palette='sequential'):
+            patch_palette='sequential',
+            figsize=(15,7)):
+
+        self.figsize = figsize
 
         self.is_empirical = is_empirical
         if pool_df is not None:
@@ -109,7 +113,8 @@ class InteractiveFigure:
 
         self.sample_model_dict = {}
 
-        self.baseline_color = "orange"
+        #self.baseline_color = "orange"
+        self.baseline_color = "red"
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points = [self.baseline_point]
@@ -119,7 +124,8 @@ class InteractiveFigure:
             self.available_colors = ["red", "blue", "green", "violet"]
         elif patch_palette == 'sequential':
             cmap = plt.get_cmap("Oranges")
-            self.available_colors = [cmap(x) for x in np.linspace(0.2, 0.6, 5)]
+            self.available_colors = [cmap(x) for x in np.linspace(0.2, 0.7, 4)]
+            #self.available_colors = [cmap(x) for x in np.linspace(0.4, 0.9, 2)]
 
         self.subplots = subplots
         self.make_figure()
@@ -159,7 +165,10 @@ class InteractiveFigure:
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
 
-        return df
+        class SimulationResult(NamedTuple):
+            df: pd.DataFrame
+            beta: float
+        return SimulationResult(df, beta)
 
     def baseline_at_point(self, baseline_coordinates, one_trial=False):
         if self.full_sample_df is None:
@@ -168,7 +177,7 @@ class InteractiveFigure:
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
-            baseline_df = self.simulate_at_point(keys, sizes)
+            baseline_df = self.simulate_at_point(keys, sizes).df
             return baseline_df
 
         baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
@@ -229,7 +238,9 @@ class InteractiveFigure:
     
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
-        self.fig, self.ax = plt.subplots(*self.subplots.shape, figsize=(15,7))
+        #figsize = (self.subplots.shape[0] * 3.5, self.subplots.shape[1] * 7.5)
+        #if self.subplots.shape == (2,2): figsize = (15,7)
+        self.fig, self.ax = plt.subplots(*self.subplots.shape, figsize=self.figsize)
 
         print(self.ax.ravel())
         for subfigure_type, _ax in zip(self.subplots.ravel(), self.ax.ravel()):
@@ -243,8 +254,13 @@ class InteractiveFigure:
         self.new_baseline_flag = False
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
-
+        #import pdb; pdb.set_trace()
+        slide_name = f"slide-ss{self.simulation_sample_size}"
+        for k,v in self.baseline_point.parameter_coordinates.items():
+            slide_name += f'-{k[0]}{v}'
+        plt.savefig(f'mass_produced/{slide_name}.png', dpi=400),# bbox_inches='tight')
         plt.show()
+        
 
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
@@ -280,7 +296,7 @@ class InteractiveFigure:
             self.new_baseline_flag = True
 
 def subfigure_factory(plot_type, ax, interactive):
-    possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot']
+    possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot', 'probability contour plot']
     assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
 
     if plot_type == 'logl heatmap':
@@ -328,6 +344,16 @@ def subfigure_factory(plot_type, ax, interactive):
         print(logl_df)
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
+    elif plot_type == 'probability contour plot':
+        trialnumber=0
+        # unstacked for Z
+        logl_df = interactive.logl_df.loc[
+            interactive.baseline_point.parameter_coordinates[interactive.key1],
+            interactive.baseline_point.parameter_coordinates[interactive.key2],
+            trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+        print(logl_df)
+        subfigure = ProbabilityContourPlot(ax, interactive, logl_df, "", color_label="probability")
+
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, interactive)
 
@@ -350,7 +376,7 @@ class Subfigure:
         print("clearing", type(self))
 
 class SelectionDependentSubfigure(Subfigure):
-    def frequency_df_at_point(self, point):
+    def frequency_df_at_point(self, point, drop_level=None):
         labels = [point.parameter_coordinates[self.interactive.key1], point.parameter_coordinates[self.interactive.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
             restriction = likelihood.frequencies_from_synthetic(self.interactive.sample_df, self.interactive.keys)
@@ -361,6 +387,14 @@ class SelectionDependentSubfigure(Subfigure):
             mask.index = self.interactive.frequency_df.index
             restriction = self.interactive.frequency_df[mask]
         restriction.name = 'freq'
+        if drop_level:
+            #import pdb; pdb.set_trace()
+            restriction.index = restriction.index.droplevel(drop_level)
+            if self.interactive.key1 == drop_level:
+                labels = labels[1:]
+            if self.interactive.key2 == drop_level:
+                labels = labels[:1]
+            #pass
         return labels, restriction
 
 class TraitHistograms(SelectionDependentSubfigure):
@@ -369,20 +403,23 @@ class TraitHistograms(SelectionDependentSubfigure):
 
     def draw(self):
         SelectionDependentSubfigure.draw(self)
-
         possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass"]
         if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
             print("WARNING: both keys are traits. Graphing only key1")
-
+        print(self.interactive.keys)
         if self.interactive.key1 in possible_traits:
             graph_key = self.interactive.key1
-        #elif self.interactive.key2 in possible_traits:
-        if self.interactive.key2 in possible_traits:
+        elif self.interactive.key2 in possible_traits:
             graph_key = self.interactive.key2
         else:
             return None
 
+        #import pdb; pdb.set_trace()
         bins = np.linspace(0., 6., 30)
+        bins = np.linspace(0., 7., 20)
+        colors = []
+        outputs = []
+        labels = []
         for p in self.interactive.selected_points:
             #trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
             parameter_value = p.parameter_coordinates[graph_key]
@@ -392,13 +429,31 @@ class TraitHistograms(SelectionDependentSubfigure):
                 variance = constants.mass_to_variance[parameter_value]
                 #variance = utilities.find_gamma_target_variance(80, parameter_value)
                 trait=traits.GammaTrait(mean=1.0, variance=variance)
+            color = p.color
+            #import pdb; pdb.set_trace()
+            if p.is_baseline:
+                alt_cmap = plt.get_cmap("Oranges")
+                color = [alt_cmap(x) for x in np.linspace(0.2, 0.7, 4)][2]
+            colors.append(color)
+            samples = 1000000
+            shaped_array = np.full((samples,), True)
+            output = np.array(trait(shaped_array))
+            outputs.append(output)
+            labels.append(p.parameter_coordinates[self.interactive.key1])
+            #ax = trait.plot(samples=10000, color=color, bins=bins, normed=1, histtype='bar')
 
-            trait.plot(samples=10000, color=p.color, alpha=0.5, bins=bins)
-        plt.title("Gamma distributed {0}".format(graph_key))
+        #ax = plt.hist(outputs, histtype='bar', bins=bins, color=colors, label=labels)
+        ax = plt.hist(outputs, histtype='stepfilled',bins=bins, color=colors, label=labels, alpha=0.8, edgecolor='black')
+        self.ax.legend(prop={'size': 12})
+        plt.ylabel("# people")
+        plt.xlabel("relative magnitude")
+        #plt.title("Gamma distributed {0}".format(graph_key))
 
 class InfectionHistogram(SelectionDependentSubfigure):
-    def __init__(self, ax, interactive):
+    def __init__(self, ax, interactive, drop_level=None):
         SelectionDependentSubfigure.__init__(self, ax, interactive)
+        self.drop_level = drop_level
+        self.drop_level = 'hsar'
 
     def draw(self):
         SelectionDependentSubfigure.draw(self)
@@ -409,17 +464,27 @@ class InfectionHistogram(SelectionDependentSubfigure):
         restrictions = []
         #import pdb; pdb.set_trace()
         for p in self.interactive.selected_points:
-            labels, restriction = self.frequency_df_at_point(p)
-            color_dict[tuple(labels)] = p.color
+            
+            labels, restriction = self.frequency_df_at_point(p, drop_level=self.drop_level)
+            if len(labels) > 1:
+                labels = tuple(labels)
+            else:
+                labels = labels[0]
+            color_dict[labels] = p.color
+            # SPECIAL
+            if p.parameter_coordinates['hsar'] == 0.25:
+                alt_cmap = plt.get_cmap("Oranges")
+                color_dict[0.2] = [alt_cmap(x) for x in np.linspace(0.2, 0.7, 4)][2]
+
             reset_restriction = restriction.reset_index()
             #average_dict[tuple(labels)] = restriction['infections'].mean() #old
-            average_dict[tuple(labels)] = (reset_restriction['infections'] * reset_restriction['freq']).sum()
+            average_dict[labels] = (reset_restriction['infections'] * reset_restriction['freq']).sum()
             if p.is_baseline:
                 baseline_restriction = restriction
-                baseline_coordinates = tuple(labels)
+                baseline_coordinates = labels
             else:
                 restrictions.append(restriction)
-                represented_coordinates.add(tuple(labels))
+                represented_coordinates.add(labels)
         print(represented_coordinates)
         print(baseline_coordinates)
         # only display the baseline if we haven't separately chosen to view that cell
@@ -427,11 +492,20 @@ class InfectionHistogram(SelectionDependentSubfigure):
             restrictions.append(baseline_restriction)
 
         restricted_df = pd.concat(restrictions)
-        ax = utilities.simple_bar_chart(restricted_df, key=[self.interactive.key1, self.interactive.key2], color=color_dict, title="Normalized histogram of infections", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
-        offsets = (0.03*i for i in range(0, len(restrictions)))
-        for labels, average in average_dict.items():
-            offset = next(offsets)
-            ax.text(0.25, 0.28-offset, f"average={average:.2f}", size=9, color=color_dict[labels])
+        keys = [self.interactive.key1, self.interactive.key2]
+        if self.drop_level:
+            try:
+                keys.remove(self.drop_level)
+            except ValueError:
+                pass
+        #import pdb; pdb.set_trace()
+        ax = utilities.simple_bar_chart(restricted_df, key=keys, color=color_dict, title="", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
+        #ax.legend(title='top 20% portion')
+        ax.legend(title='household secondary attack rate')
+        offsets = (0.04*i for i in range(0, len(restrictions)))
+        #for labels, average in average_dict.items():
+        #    offset = next(offsets)
+        #    ax.text(0.25, 0.37-offset, f"average={average:.2f}", size=12, color=color_dict[labels])
         
 class OnAxesSubfigure(Subfigure):
     '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
@@ -482,16 +556,18 @@ class OnAxesSubfigure(Subfigure):
 
             x_min, y_min = self.index_to_xy(x_min_index, y_min_index)
 
-            x_min = x_min + self.center_offset + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap
-            y_min = y_min + self.center_offset + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale
+            x_min = x_min + self.center_offset# + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap
+            y_min = y_min + self.center_offset# + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale
 
             x_mins.append(x_min)
             y_mins.append(y_min)
 
             if trial == EMPIRICAL_TRIAL_ID:
-                colors.append("orange")
+                colors.append("red")
+                #colors.append("orange")
             else:
-                colors.append("orange")
+                colors.append("red")
+                #colors.append("orange")
 
         self.ax.scatter(x_mins, y_mins, s=4, c=colors, **kwargs) 
 
@@ -552,7 +628,9 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         # refactor this so it calls a draw_patch method of the subfigure
 
         if point.is_baseline:
-            patch = self.ax.add_patch(patches.Ellipse((x,y), 1*self.patches_x_scale, 1*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
+            patch = self.ax.add_patch(patches.Ellipse((x,y), 0.5*self.patches_x_scale, 0.5*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
+            #patch = self.ax.add_patch(patches.Ellipse((x+0.15*self.patches_x_scale,y+0.15*self.patches_y_scale), 0.2*self.patches_x_scale, 0.2*self.patches_y_scale, fill=False, edgecolor=point.color, lw=1))
+            #patch = self.ax.add_patch(patches.Circle((x+0.05*self.patches_x_scale,y+0.05*self.patches_y_scale), 0.05*self.patches_x_scale,fill=True, edgecolor=point.color, lw=2))
         else:
             patch = self.ax.add_patch(patches.Rectangle((x-0.5*self.patches_x_scale,y-0.5*self.patches_y_scale), 1*self.patches_x_scale, 1*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
 
@@ -609,9 +687,7 @@ class ContourPlot(OnMatplotlibAxes):
 
         #alias of df
         self.Z = self.df
-
-        #self.Z.columns = np.linspace(0.2, 0.9, 8)
-        #self.Z.index = np.linspace(0.2, 0.9, 8)
+        #print(self.Z)
 
         OnMatplotlibAxes.__init__(self, ax, interactive)
         
@@ -640,11 +716,20 @@ class ContourPlot(OnMatplotlibAxes):
             self.scatter_point_estimates()
 
         plt.title(self.title)
-        plt.xlabel(self.interactive.key2)
-        plt.ylabel(self.interactive.key1)
+        plt.xlabel(constants.pretty_names[self.interactive.key2])
+        plt.ylabel(constants.pretty_names[self.interactive.key1])
 
         plt.sca(self.ax)
         self.draw_patches()
+
+class ProbabilityContourPlot(ContourPlot):
+    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
+        df = np.exp(df.sort_values(ascending=False)-df.max())
+        df.name = 'probability'
+        df = df / df.sum()
+        #import pdb; pdb.set_trace()
+        super().__init__(ax, interactive, df, title, color_label, scatter_stars=scatter_stars)
+        self.kwargs['levels'] = 5
 
 class Heatmap(OnSeabornAxes):
     def __init__(self, ax, interactive, df, title, scatter_stars=True):
@@ -689,7 +774,7 @@ class ConfidenceHeatmap(Heatmap):
 
     def draw(self):
         Subfigure.draw(self)
-        cmap = sns.color_palette("Purples", self.n_masks)
+        cmap = sns.color_palette("Greens", self.n_masks)
         #cmap.set_bad("black") 
         in_no_group_mask = np.where(self.df==0., True, False)
         ax = sns.heatmap(self.df, mask=in_no_group_mask, ax=self.ax, cbar=True, cmap=cmap) # need .unstack() here if we don't do it by default

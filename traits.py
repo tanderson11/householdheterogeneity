@@ -14,15 +14,15 @@ class Trait(abc.ABC):
         sample_median = np.median(output)
         ninetieth_percentile = np.percentile(output, 90)
 
-        plt.hist(output, **kwargs)
-        plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}\n median {3:.2f}\n 90th percentile {3:.2f}".format(self, sample_mean, sample_var, sample_median, ninetieth_percentile))
+        ax = plt.hist(output, **kwargs, stacked=True)
+        #plt.title("{0}.\nSample mean {1:.2f} and sample var {2:.2f}\n median {3:.2f}\n 90th percentile {3:.2f}".format(self, sample_mean, sample_var, sample_median, ninetieth_percentile))
         plt.xlabel("relative magnitude")
         plt.ylabel("# people")
 
         #plt.axvline(np.percentile(output, 10))
         #plt.axvline(np.percentile(output, 50))
         #plt.axvline(np.percentile(output, 90))
-        return sample_mean, sample_var
+        return ax
 
     @abc.abstractmethod
     def draw_from_distribution(self, occupants):
