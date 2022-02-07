@@ -16,6 +16,7 @@ torch = {path = "torch-1.9.0-cp39-none-macosx_11_0_arm64.whl"}
 
 matplotlib = "^3.4.2"
 ipython_unittest = "^0.3.1"
+ipykernel = "^6.8.0"
 [tool.poetry.dev-dependencies]
 jupyter = "^1.0.0"
 
