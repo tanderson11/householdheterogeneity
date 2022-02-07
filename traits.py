@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import abc
+import json
+import scipy.stats
 
 class Trait(abc.ABC):
     def __call__(self, occupants):
@@ -25,7 +27,7 @@ class Trait(abc.ABC):
         return ax
 
     @abc.abstractmethod
-    def draw_from_distribution(self, occupants):
+    def draw_from_distribution(self, is_occupied):
         '''Takes:
                 is_occupied:pd.DataFrame a table of households where values are masked
                 True=individual exists and False=individual not present in household
@@ -35,7 +37,14 @@ class Trait(abc.ABC):
         '''
         pass
 
+    def as_dict(self):
+        self_dict = {
+            'distribution_type':self.distribution_type,
+        }
+        return self_dict
+
 class ConstantTrait(Trait):
+    distribution_type = 'constant'
     def __init__(self, trait_value=1.0):
         super().__init__()
         self.trait_value = trait_value
@@ -45,8 +54,13 @@ class ConstantTrait(Trait):
 
     def __repr__(self):
         return "Constant trait named {0} with value {1:.2f}".format(self.trait_value)
+    
+    def as_dict(self):
+        self_dict = super().as_dict()
+        self_dict['trait_value'] = self.trait_value
 
 class GammaTrait(Trait):
+    distribution_type = 'gamma'
     def __init__(self, mean=1.0, variance=None):
         # copy fields
         super().__init__()
@@ -63,9 +77,14 @@ class GammaTrait(Trait):
 
     def __repr__(self):
         return "Gamma distributed trait with mean {0:.2f} and variance {1:.2f}".format(self.mean, self.variance)
-    
+
+    def as_dict(self):
+        self_dict = super().as_dict()
+        self_dict.update({'mean': self.mean, 'variance': self.variance})
+
 
 class BiModalTrait(Trait):
+    distribution_type = 'bimodal'
     def __init__(self, n_fold_difference):
         self.n_fold = n_fold_difference
         # P_high * n + (1 - P_high) / n = 1.0
@@ -87,6 +106,26 @@ class BiModalTrait(Trait):
         values = np.where(occupants & is_high, self.n_fold * occupants, occupants/self.n_fold)
 
         return values
+
+    def as_dict(self):
+        self_dict = super().as_dict()
+        self_dict.update({'n_fold_difference': self.n_fold})
+
+class LognormalTrait(Trait):
+    distribution_type = 'lognormal'
+    def __init__(self, mu, sigma) -> None:
+        super().__init__()
+        self.mu = mu
+        self.sigma = sigma
+
+        self.distribution = scipy.stats.lognorm(s=sigma, scale=np.exp(mu))
+
+    def draw_from_distribution(self, is_occupied):
+        return np.where(is_occupied, self.distribution.rvs(is_occupied.shape), 0)
+
+    def as_dict(self):
+        self_dict = super().as_dict()
+        self_dict.update({'mu': self.mu, 'variance': self.sigma})
 
 if __name__ == '__main__':
     t = GammaTrait(mean=1.0, variance=1.0)
