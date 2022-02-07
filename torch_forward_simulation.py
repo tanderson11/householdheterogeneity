@@ -1,7 +1,7 @@
 import torch
-import constants
 import numpy as np
 from settings import device
+from settings import constants
 
 # Calculating the state lengths quickly with torch
 

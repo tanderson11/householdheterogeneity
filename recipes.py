@@ -3,17 +3,17 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-import constants
+from settings import constants
 import traits
 from torch_forward_simulation import torch_forward_time, torch_state_length_sampler
 
 class StateLengthConfig(enum.Enum):
-    gamma_state_lengths = 'gamma state lengths'
-    constant_state_lengths = 'constant state lengths'
+    gamma = 'gamma'
+    constant = 'constant'
+    lognormal = 'lognormal'
 
 class InitialSeedingConfig(enum.Enum):
     seed_one_by_susceptibility = 'seed one by susceptibility'
-    fast_by_susceptibility = 'fast by susceptibility'
     no_initial_infections = 'seed none'
 
 class ImportationRegime(NamedTuple):
@@ -21,13 +21,14 @@ class ImportationRegime(NamedTuple):
     importation_rate: float
 
 class Model(NamedTuple):
-    # simulation parameters
-    state_lengths: str = StateLengthConfig.gamma_state_lengths.value
-    initial_seeding: str = InitialSeedingConfig.fast_by_susceptibility.value
+    # simulation configuration
+    state_lengths: str = StateLengthConfig.gamma.value
+    initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
 
-    def run_trials(self, household_beta, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait()):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait()):
+        assert household_beta is not None
         #import pdb; pdb.set_trace()
         if population is None:
             assert sizes is not None
@@ -35,13 +36,13 @@ class Model(NamedTuple):
             population = PopulationStructure(expanded_sizes, sus, inf)
 
         df = population.simulate_population(household_beta, *self)
-        
+
         dfs = []
         grouped = df.groupby("size")
         for size, group in grouped:
-            count = sizes[size]
-            trialnums = [t for t in range(trials) for i in range(count)]
-            group["trialnum"] = trialnums
+            if trials > 1:
+                count = sizes[size]
+                trialnums = [t for t in range(trials) for i in range(count)]
             dfs.append(group)
         return pd.concat(dfs)
 
@@ -51,10 +52,10 @@ class Population(NamedTuple):
     inf: np.ndarray
     connectivity_matrix: np.ndarray
 
-    def fast_seed_one_by_susceptibility(self):
+    def seed_one_by_susceptibility(self):
         # Let's say a household has susceptibilites like 0.5, 1.0, 2.0
-        # we want to map these onto a 'dice' that is rolled between 0 and 1
-        # like 1/7, 2/7, 4/7 -> 1/7, 3/7, 7/7. Then we roll our dice in [0,1] and look where it 'landed'
+        # we want to map these onto a 'die' that is rolled between 0 and 1
+        # like 1/7, 2/7, 4/7 -> 1/7, 3/7, 7/7. Then we roll our die in [0,1] and look where it 'landed'
         # ie: maps the susceptibilities onto their share of the unit interval
         roll_mapping = np.cumsum(np.squeeze(self.sus)/np.sum(self.sus, axis=1), axis=1)
         roll = np.random.random((roll_mapping.shape[0],1))
@@ -67,34 +68,15 @@ class Population(NamedTuple):
         initial_state[row_hits, col_hits] = constants.STATE.exposed
         return initial_state
 
-    def seed_one_by_susceptibility(self):
-        #import pdb; pdb.set_trace()
-        n_hh = len(self.is_occupied)
-        initial_state = self.is_occupied * constants.STATE.susceptible
-        
-        sus_p = [np.squeeze(self.sus[i,:,:]) for i in range(n_hh)]
-        # susceptibility/total_sus chance of getting the seeded infection
-
-        #import pdb; pdb.set_trace()
-        choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p]
-        
-        choices = np.array(choices).reshape(n_hh)
-
-        initial_state[np.arange(n_hh), choices] = constants.STATE.exposed
-        return initial_state
-
     def seed_none(self):
         initial_state = self.is_occupied * constants.STATE.susceptible
         return initial_state
-
 
     def make_initial_state(self, initial_seeding):
         initial_seeding = InitialSeedingConfig(initial_seeding)
 
         if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
             initial_state = self.seed_one_by_susceptibility()
-        elif initial_seeding == InitialSeedingConfig.fast_by_susceptibility:
-            initial_state = self.fast_seed_one_by_susceptibility()
         elif initial_seeding == InitialSeedingConfig.seed_none:
             initial_state = self.seed_none()
         else:
@@ -126,7 +108,7 @@ class PopulationStructure:
         self._adjmat = 1 - self._nd_eyes # this is used so that an individual doesn't 'infect' themself
 
     def make_population(self):
-        # creatures a real draw from the trait distributions to represent
+        # creates a real draw from the trait distributions to represent
         # one instance of the abstract structure
         sus = np.expand_dims(self.susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
         inf = np.transpose(np.expand_dims(self.infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
@@ -157,13 +139,12 @@ class PopulationStructure:
 
         # select the appropriate function for state lengths based on config str:
         state_length_config = StateLengthConfig(state_lengths)
-        if state_length_config == StateLengthConfig.gamma_state_lengths:
+        if state_length_config == StateLengthConfig.gamma:
             state_length_sampler = torch_state_length_sampler
-        elif state_length_config == StateLengthConfig.constant_state_lengths:
+        elif state_length_config == StateLengthConfig.constant:
             raise Exception('unimplemented constant state lengths')
-            state_length_sampler = None
         else:
-            raise Exception('unimplemented')
+            raise Exception('unimplemented state length configuration')
 
         ############
         # Simulate #
@@ -181,5 +162,5 @@ if __name__ == '__main__':
     x.run_trials(0.05, sizes={5:1, 4:1}, sus=traits.BiModalTrait(2.0))
     x = PopulationStructure({5:10000, 10:10000})
     pop = x.make_population()
-    pop.fast_seed_one_by_susceptibility()
+    pop.seed_one_by_susceptibility()
     #pop.seed_one_by_susceptibility()
