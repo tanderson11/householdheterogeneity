@@ -3,21 +3,6 @@ import numpy as np
 from settings import device
 from settings import constants
 
-# Calculating the state lengths quickly with torch
-
-# torch's gamma distributions are parametrized with concentration and rate, but the documentation confirms concentration=alpha and rate=beta
-torch_shape_vec = torch.from_numpy(constants.numpy_shape_vec).to(device) ## move to device
-torch_scale_vec = torch.from_numpy(constants.numpy_scale_vec).to(device)
-
-DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device), torch.tensor([1.0]).to(device)) for alpha in torch_shape_vec]
-
-def torch_state_length_sampler(new_state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
-    dist = DISTS[new_state]
-    samples = dist.sample(entrants.shape)
-    beta = constants.delta_t/torch_scale_vec[new_state]
-    samples = torch.round(samples / beta)
-    return torch.squeeze(1+samples) # Time must be at least 1.
-
 def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  
 

@@ -1,6 +1,7 @@
 import numpy as np
-import constants
+from settings import constants
 import traits
+import abc
 
 ### Initial infection seeding utility functions
 
@@ -9,7 +10,7 @@ import traits
 def simple_bar_chart(df, key=None, drop_level=None, **kwargs):
     print(df)
     #import pdb; pdb.set_trace()
-    
+
     unstacked = df.unstack(list(range(len(key))))
     print(unstacked)
     ax = unstacked.plot.bar(**kwargs)
@@ -21,7 +22,7 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     # count the occcurences and apply a sort so the shape of the dataframe doesn't change contextually
     counts = grouped.apply(lambda g: g.value_counts(subset="infections", normalize=True).sort_index())
     # This technology breaks if not all # of infections in the range in fact exist in the data. TODO fix this
-    
+
     # for some reason a change in the dataframes mean that the counts were stacking the infections in this weird way that I don't understand. this fixes it
     counted_unstacked = counts.T.unstack(fill_value=0.).unstack(level=list(range(len(key))))
     # and this was the old way
@@ -29,13 +30,13 @@ def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwarg
     #import pdb; pdb.set_trace()
     ax = counted_unstacked.plot.bar(**kwargs)
     return ax
-    
+
 def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     grouped = df.groupby(["size", "infections"])
     regrouped = grouped[color_by_column].value_counts().unstack().groupby("size")
     #regrouped.plot.bar(figsize=(8,8), ylabel="count")
-    
-    i = 0 
+
+    i = 0
     for k,g in regrouped:
         try:
             if axes.any():
@@ -127,11 +128,101 @@ def find_gamma_target_variance(percentile, target_fraction, method='fsolve'):
         root = scipy.optimize.fsolve(func, x0=0.)
     return root[0]
 
-if __name__ == '__main__':
-    import traits
-    s = traits.GammaTrait(mean=1.0, variance=1.0)
-    f = traits.ConstantTrait()
-#solve_for_beta_implicitly_no_state_lengths(0.80, t)
-#f = traits.GammaTrait(mean=1.0, variance=1.0)
-#s = traits.ConstantTrait()
-#implicit_solve_for_beta(0.80, s, f)
+import scipy.stats as stats
+def lognormal_p80_solve(p80):
+    def objective_function_crafter(p80):
+        '''
+        Takes in the desired p80
+
+        Returns a function that accepts a variance
+        and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
+        '''
+        assert p80 < 0.8
+        def objective_function(variance):
+            sigma = np.sqrt(np.log(variance + 1))
+            mu = -1/2 * np.log(variance + 1)
+            rv = stats.lognorm(s=sigma, scale=np.exp(mu))
+
+            # we want x80 with F(x80) = p80
+            x80_defining_function = lambda x: np.abs(1 - p80 - rv.cdf(x))
+            x80 = scipy.optimize.fsolve(x80_defining_function, 0.5)[0]
+
+
+            integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
+            #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
+            return np.abs(0.8 - 1.0 + integral)
+        return objective_function
+
+    def least_squares_solve(p80):
+        objective_function = objective_function_crafter(p80)
+        variance = scipy.optimize.least_squares(objective_function, np.array((1.0)), bounds=((1.0e-6), (np.inf)))
+        return variance
+
+    variance = least_squares_solve(p80)
+    return variance
+
+def lognormal_s80_solve(s80):
+    return lognormal_p80_solve(s80)
+
+from state_lengths import lognormal_DISTS
+def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
+    infectious_period_distribution = lognormal_DISTS[constants.STATE.infectious].distribution
+    mu_t, sigma_t = infectious_period_distribution.mu, infectious_period_distribution.sigma
+
+    mu_s, sigma_s = sus.mu, sus.sigma
+    mu_f, sigma_f = inf.mu, inf.sigma
+
+    mu = mu_t + mu_s + mu_f
+    sigma = np.sqrt(sigma_t**2 + sigma_s**2 + sigma_f**2)
+    generalized_period_rv = stats.lognorm(s=sigma, scale=np.exp(mu)) # as specified in the `scipy` documentation
+
+    def SAR_objective_function_crafter(SAR_target):
+        def SAR_objective_function(beta):
+            integral, abserror = scipy.integrate.quad(lambda x: generalized_period_rv.pdf(x) * np.exp(-1 * beta * x), 0, np.inf)
+            sar = 1 - integral
+            return np.abs(SAR_target - sar)
+        return SAR_objective_function
+
+    SAR = SAR_objective_function_crafter(0.55)
+    beta = scipy.optimize.least_squares(SAR, np.array((0.05)), bounds=((1.0e-6), (np.inf)))
+    return beta
+
+class ModelInputs(abc.ABC):
+    @abc.abstractmethod
+    def to_normal_inputs(self):
+        '''
+        Returns a dictionary of the form:
+
+        {
+            'household_beta': float,
+            'sus_dist': Trait,
+            'inf_dist': Trait,
+        }
+        '''
+        pass
+
+class S80_P80_SAR_Inputs(ModelInputs):
+    def __init__(self, s80, p80, SAR) -> None:
+        self.s80 = s80
+        self.p80 = p80
+        self.SAR = SAR
+
+    def to_normal_inputs(self):
+        sus_variance = lognormal_s80_solve(self.s80)
+        sus_dist = traits.LognormalTrait.from_natural_mean_variance(1., sus_variance)
+        inf_variance = lognormal_p80_solve(self.p80)
+        inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
+        beta = beta_from_sar_and_lognormal_traits(self.SAR, sus_dist, inf_dist)
+
+        return {
+            'household_beta': beta,
+            'sus_dist': sus_dist,
+            'inf_dist': inf_dist,
+        }
+
+    def as_dict(self):
+        return {
+            's80':self.s80,
+            'p80':self.p80,
+            'SAR':self.SAR,
+        }

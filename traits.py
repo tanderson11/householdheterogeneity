@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import abc
-import json
 import scipy.stats
 
 class Trait(abc.ABC):
@@ -126,6 +125,13 @@ class LognormalTrait(Trait):
     def as_dict(self):
         self_dict = super().as_dict()
         self_dict.update({'mu': self.mu, 'variance': self.sigma})
+
+    @classmethod
+    def from_natural_mean_variance(cls, mean, variance):
+        sigma = np.sqrt(np.log(variance/(mean**2) + 1))
+        mu = np.log(mean**2 / np.sqrt(variance + mean**2))
+
+        return cls(mu, sigma)
 
 if __name__ == '__main__':
     t = GammaTrait(mean=1.0, variance=1.0)

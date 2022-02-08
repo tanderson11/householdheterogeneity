@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 
 from settings import constants
+import state_lengths as state_length_module
 import traits
-from torch_forward_simulation import torch_forward_time, torch_state_length_sampler
+from torch_forward_simulation import torch_forward_time
 
 class StateLengthConfig(enum.Enum):
     gamma = 'gamma'
@@ -85,6 +86,19 @@ class Population(NamedTuple):
         initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
 
+'''
+class Metadata(NamedTuple):
+    constants: Constants
+    model: Model
+    inputs: dict
+    population: PopulationStructure
+    region: SimulationRegion
+
+class Results(NamedTuple):
+    df: pd.DataFrame
+    metadata: Metadata
+'''
+
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
         assert isinstance(household_sizes, dict)
@@ -140,7 +154,9 @@ class PopulationStructure:
         # select the appropriate function for state lengths based on config str:
         state_length_config = StateLengthConfig(state_lengths)
         if state_length_config == StateLengthConfig.gamma:
-            state_length_sampler = torch_state_length_sampler
+            state_length_sampler = state_length_module.gamma_state_length_sampler
+        elif state_length_config == StateLengthConfig.lognormal:
+            state_length_sampler = state_length_module.lognormal_state_length_sampler
         elif state_length_config == StateLengthConfig.constant:
             raise Exception('unimplemented constant state lengths')
         else:
