@@ -2,6 +2,9 @@ import enum
 from typing import NamedTuple
 import numpy as np
 import pandas as pd
+#import pyarrow.parquet as pq
+#import pyarrow as pa
+import os
 
 from settings import constants
 import state_lengths as state_length_module
@@ -47,6 +50,51 @@ class Model(NamedTuple):
             dfs.append(group)
         return pd.concat(dfs)
 
+    def run_grid(self, sizes, region, outpath):
+        axis_data = list(region.axes_by_name.items())
+        key1, axis1 = axis_data[0]
+        key2, axis2 = axis_data[1]
+        key3, axis3 = axis_data[2]
+
+        two_d_dfs = []
+        for v1 in axis1:
+            one_d_dfs = []
+            for v2 in axis2:
+                for v3 in axis3:
+                    params = {}
+                    params[key1] = v1
+                    params[key2] = v2
+                    params[key3] = v3
+
+                    defualt_parameters = region.parameter_class(**params).to_normal_inputs()
+
+                    sus_dist = defualt_parameters['sus_dist']
+                    inf_dist = defualt_parameters['inf_dist']
+                    beta = defualt_parameters['household_beta']
+
+                    point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist)
+                    point_results = pd.DataFrame(point_results.groupby(['size','infections']).size())
+
+                    trait_parameter_name, trait_parameter_value = sus_dist.as_column()
+                    point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.2f}")
+                    trait_parameter_name, trait_parameter_value = inf_dist.as_column()
+                    point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.2f}")
+                    point_results['beta'] = np.float(f"{beta:.3f}")
+
+                    point_results[key1] = v1
+                    point_results[key2] = v2
+                    point_results[key3] = v3
+
+                    one_d_dfs.append(point_results)
+            two_d_df = pd.concat(one_d_dfs)
+            #return two_d_df
+            two_d_dfs.append(two_d_df)
+            #parquet_df = pa.Table.from_pandas(two_d_df)
+            #pq.write_table(parquet_df, os.path.join(outpath, f"pool_df-{key1}-{v1:.3f}.parquet"))
+            two_d_df = None
+        three_d_df = pd.concat(two_d_dfs)
+        return three_d_df
+
 class Population(NamedTuple):
     is_occupied: np.ndarray
     sus: np.ndarray
@@ -86,18 +134,22 @@ class Population(NamedTuple):
         initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
 
-'''
+from utilities import ModelInputs
+from typing import OrderedDict
+class SimulationRegion(NamedTuple):
+    axes_by_name: OrderedDict
+    parameter_class: ModelInputs
+
 class Metadata(NamedTuple):
-    constants: Constants
+    constants: dict
     model: Model
     inputs: dict
-    population: PopulationStructure
+    population: dict
     region: SimulationRegion
 
 class Results(NamedTuple):
     df: pd.DataFrame
     metadata: Metadata
-'''
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):

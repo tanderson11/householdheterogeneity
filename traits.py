@@ -59,6 +59,11 @@ class ConstantTrait(Trait):
         self_dict['trait_value'] = self.trait_value
         return self_dict
 
+    def as_column(self):
+        '''For when we log this trait in a pandas dataframe.'''
+        assert(self.mean == 1)
+        return ('constant_value', self.trait_value)
+
 class GammaTrait(Trait):
     distribution_type = 'gamma'
     def __init__(self, mean=1.0, variance=None):
@@ -82,6 +87,11 @@ class GammaTrait(Trait):
         self_dict = super().as_dict()
         self_dict.update({'mean': self.mean, 'variance': self.variance})
         return self_dict
+
+    def as_column(self):
+        '''For when we log this trait in a pandas dataframe.'''
+        assert(self.mean == 1)
+        return ('variance', self.variance)
 
 
 class BiModalTrait(Trait):
@@ -115,10 +125,13 @@ class BiModalTrait(Trait):
 
 class LognormalTrait(Trait):
     distribution_type = 'lognormal'
-    def __init__(self, mu, sigma) -> None:
+    def __init__(self, mu, sigma, mean=None, variance=None) -> None:
         super().__init__()
         self.mu = mu
         self.sigma = sigma
+
+        self.mean = mean
+        self.variance = variance
 
         self.distribution = scipy.stats.lognorm(s=sigma, scale=np.exp(mu))
 
@@ -130,12 +143,17 @@ class LognormalTrait(Trait):
         self_dict.update({'mu': self.mu, 'variance': self.sigma})
         return self_dict
 
+    def as_column(self):
+        '''For when we log this trait in a pandas dataframe.'''
+        assert(self.mean == 1)
+        return ('variance', self.variance)
+
     @classmethod
     def from_natural_mean_variance(cls, mean, variance):
         sigma = np.sqrt(np.log(variance/(mean**2) + 1))
         mu = np.log(mean**2 / np.sqrt(variance + mean**2))
 
-        return cls(mu, sigma)
+        return cls(mu, sigma, mean=mean, variance=variance)
 
     def __repr__(self) -> str:
         return f"LognormalTrait({self.as_dict()})"
