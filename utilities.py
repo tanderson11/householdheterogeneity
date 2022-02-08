@@ -166,7 +166,7 @@ def lognormal_s80_solve(s80):
 
 from state_lengths import lognormal_DISTS
 def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
-    infectious_period_distribution = lognormal_DISTS[constants.STATE.infectious].distribution
+    infectious_period_distribution = lognormal_DISTS[constants.STATE.infectious]
     mu_t, sigma_t = infectious_period_distribution.mu, infectious_period_distribution.sigma
 
     mu_s, sigma_s = sus.mu, sus.sigma
@@ -183,9 +183,10 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
             return np.abs(SAR_target - sar)
         return SAR_objective_function
 
-    SAR = SAR_objective_function_crafter(0.55)
-    beta = scipy.optimize.least_squares(SAR, np.array((0.05)), bounds=((1.0e-6), (np.inf)))
-    return beta
+    SAR_function = SAR_objective_function_crafter(SAR)
+    beta = scipy.optimize.least_squares(SAR_function, np.array((0.05)), bounds=((1.0e-6), (np.inf)))
+    assert(beta.success is True)
+    return beta.x[0]
 
 class ModelInputs(abc.ABC):
     @abc.abstractmethod
@@ -209,8 +210,13 @@ class S80_P80_SAR_Inputs(ModelInputs):
 
     def to_normal_inputs(self):
         sus_variance = lognormal_s80_solve(self.s80)
-        sus_dist = traits.LognormalTrait.from_natural_mean_variance(1., sus_variance)
+        assert(sus_variance.success is True)
+        sus_variance = sus_variance.x[0]
         inf_variance = lognormal_p80_solve(self.p80)
+        assert(inf_variance.success is True)
+        inf_variance = inf_variance.x[0]
+
+        sus_dist = traits.LognormalTrait.from_natural_mean_variance(1., sus_variance)
         inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
         beta = beta_from_sar_and_lognormal_traits(self.SAR, sus_dist, inf_dist)
 
@@ -226,3 +232,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
             'p80':self.p80,
             'SAR':self.SAR,
         }
+
+    def __repr__(self) -> str:
+        rep = "ModelInputs"
+        return rep + f"({self.as_dict()}\n{self.to_normal_inputs()})"

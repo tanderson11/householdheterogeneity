@@ -6,7 +6,7 @@ import scipy.stats
 class Trait(abc.ABC):
     def __call__(self, occupants):
         return self.draw_from_distribution(occupants)
-    
+
     def plot(self, samples=1000, **kwargs):
         shaped_array = np.full((samples,), True)
         output = np.array(self(shaped_array))
@@ -53,10 +53,11 @@ class ConstantTrait(Trait):
 
     def __repr__(self):
         return "Constant trait named {0} with value {1:.2f}".format(self.trait_value)
-    
+
     def as_dict(self):
         self_dict = super().as_dict()
         self_dict['trait_value'] = self.trait_value
+        return self_dict
 
 class GammaTrait(Trait):
     distribution_type = 'gamma'
@@ -80,6 +81,7 @@ class GammaTrait(Trait):
     def as_dict(self):
         self_dict = super().as_dict()
         self_dict.update({'mean': self.mean, 'variance': self.variance})
+        return self_dict
 
 
 class BiModalTrait(Trait):
@@ -109,6 +111,7 @@ class BiModalTrait(Trait):
     def as_dict(self):
         self_dict = super().as_dict()
         self_dict.update({'n_fold_difference': self.n_fold})
+        return self_dict
 
 class LognormalTrait(Trait):
     distribution_type = 'lognormal'
@@ -125,6 +128,7 @@ class LognormalTrait(Trait):
     def as_dict(self):
         self_dict = super().as_dict()
         self_dict.update({'mu': self.mu, 'variance': self.sigma})
+        return self_dict
 
     @classmethod
     def from_natural_mean_variance(cls, mean, variance):
@@ -132,6 +136,9 @@ class LognormalTrait(Trait):
         mu = np.log(mean**2 / np.sqrt(variance + mean**2))
 
         return cls(mu, sigma)
+
+    def __repr__(self) -> str:
+        return f"LognormalTrait({self.as_dict()})"
 
 if __name__ == '__main__':
     t = GammaTrait(mean=1.0, variance=1.0)
