@@ -43,7 +43,7 @@ gamma_DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device),
 
 def gamma_state_length_sampler(new_state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
     if new_state == STATE.removed or new_state == STATE.susceptible:
-        return torch.full_like(entrants, 1e10, dtype=torch.double)
+        return torch.full_like(entrants, 1e10, dtype=torch.double).to(device)
 
     dist = gamma_DISTS[new_state]
     samples = dist.sample(entrants.shape)
@@ -63,14 +63,20 @@ lognormal_DISTS = {
 }
 
 torch_lognormal_DISTS = {
-    STATE.infectious.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[STATE.infectious.value].mu, lognormal_DISTS[STATE.infectious.value].sigma),
-    STATE.exposed.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[STATE.exposed.value].mu, lognormal_DISTS[STATE.exposed.value].sigma),
+    STATE.infectious.value: torch.distributions.log_normal.LogNormal(
+        torch.tensor(lognormal_DISTS[STATE.infectious.value].mu).to(device=torch.device(device)),
+        torch.tensor(lognormal_DISTS[STATE.infectious.value].sigma).to(device=torch.device(device))
+        ),
+    STATE.exposed.value: torch.distributions.log_normal.LogNormal(
+        torch.tensor(lognormal_DISTS[STATE.exposed.value].mu).to(device=torch.device(device)),
+        torch.tensor(lognormal_DISTS[STATE.exposed.value].sigma).to(device=torch.device(device))
+        ),
 }
 
 def lognormal_state_length_sampler(new_state, entrants):
     if new_state == STATE.removed or new_state == STATE.susceptible:
-        return torch.full_like(entrants, 1e10, dtype=torch.double)
-    
+        return torch.full_like(entrants, 1e10, dtype=torch.double).to(device)
+    #import pdb; pdb.set_trace()
     dist = torch_lognormal_DISTS[new_state]
     samples = dist.sample(entrants.shape)
     samples = torch.round(samples / constants.delta_t)
