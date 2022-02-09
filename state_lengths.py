@@ -69,7 +69,7 @@ torch_lognormal_DISTS = {
 
 def lognormal_state_length_sampler(new_state, entrants):
     if new_state == STATE.removed or new_state == STATE.susceptible:
-        return torch.full_like(entrants, 1e10, dtype=torch.double)
+        return torch.full_like(entrants, 1e10, dtype=torch.double).to(device)
     
     dist = torch_lognormal_DISTS[new_state]
     samples = dist.sample(entrants.shape)
