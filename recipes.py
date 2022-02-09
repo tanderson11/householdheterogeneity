@@ -58,6 +58,10 @@ class Model(NamedTuple):
         key2, axis2 = axis_data[1]
         key3, axis3 = axis_data[2]
 
+        metadata = Metadata(constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
+        if progress_path is not None:
+            metadata.save(progress_path)
+
         two_d_dfs = []
         for v1 in axis1:
             one_d_dfs = []
@@ -96,8 +100,6 @@ class Model(NamedTuple):
                 pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
             two_d_df = None
         three_d_df = pd.concat(two_d_dfs)
-
-        metadata = Metadata(constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
 
         return Results(three_d_df, metadata)
 
@@ -152,6 +154,10 @@ class Metadata(NamedTuple):
     population: dict
     parameters: type
 
+    def save(self, root):
+        with open(os.path.join(root, 'metadata.json'), 'w') as f:
+            json.dump(self, f)
+
 class Results(NamedTuple):
     df: pd.DataFrame
     metadata: Metadata
@@ -159,9 +165,7 @@ class Results(NamedTuple):
     def save(self, root, filename):
         parquet_df = pa.Table.from_pandas(self.df)
         pq.write_table(parquet_df, os.path.join(root, filename + "_df.parquet"))
-
-        with open(os.path.join(root, filename + '_metadata.json'), 'w') as f:
-            json.dump(self.metadata, f)
+        self.metadata.save(root)
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
