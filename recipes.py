@@ -91,8 +91,9 @@ class Model(NamedTuple):
             two_d_df = pd.concat(one_d_dfs)
             #return two_d_df
             two_d_dfs.append(two_d_df)
-            parquet_df = pa.Table.from_pandas(two_d_df)
-            pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
+            if progress_path is not None:
+                parquet_df = pa.Table.from_pandas(two_d_df)
+                pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
             two_d_df = None
         three_d_df = pd.concat(two_d_dfs)
 
