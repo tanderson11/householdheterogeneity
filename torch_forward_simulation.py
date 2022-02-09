@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from settings import device
 from settings import constants
+from settings import STATE
 
 def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  
@@ -17,7 +18,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     use_torch_state_lengths = True
     if use_torch_state_lengths:
         state_lengths = torch.zeros_like(state, dtype=torch.double)
-        for s in constants.STATE:
+        for s in STATE:
             if state_lengths[state==s].nelement() > 0:
                 state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on device
     else:
@@ -31,22 +32,22 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     ## --- Everything from here on out should be in the device and should be fast ---
     p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
 
-    state_lengths[state == constants.STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
-    state_lengths[state == constants.STATE.removed]     = np.inf     ## inf b/c doesn't change from removed
+    state_lengths[state == STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
+    state_lengths[state == STATE.removed]     = np.inf     ## inf b/c doesn't change from removed
     t = 0
 
     import_flag = importation_probability.any()
     if import_flag:
         assert(duration>0), "A steady importation rate is defined, but no duration was given."
-    total_introductions = torch.sum((state == constants.STATE.exposed), axis=1) # counting the total number of introductions, maintained throughout the run
+    total_introductions = torch.sum((state == STATE.exposed), axis=1) # counting the total number of introductions, maintained throughout the run
   
     assert duration != 0, "Duration is 0. when it should be None to represent an untimed run."
 
     run_flag = True
     while run_flag:
         
-        inf_mask = (state == constants.STATE.infectious)
-        sus_mask = (state == constants.STATE.susceptible)
+        inf_mask = (state == STATE.infectious)
+        sus_mask = (state == STATE.susceptible)
         
         ## importing from outside the households
         if import_flag and sus_mask.any(): # if importation is defined and at least one person is in a susceptible state, see if imports happen
@@ -111,7 +112,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
                 #import pdb; pdb.set_trace()
                 # send people directly to removed if we're trying to view the model without secondary infections
                 dstate = dstate.int()
-                dstate[dstate != 0] = constants.STATE.removed - constants.STATE.susceptible
+                dstate[dstate != 0] = STATE.removed - STATE.susceptible
                 #print("modifying dstate with no secondary_infections")
                 #print(dstate.dtype)
                 #print("new dstate.max()", dstate.max())
@@ -136,7 +137,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             ## When patients move to a new state, we generate the length that they'll be
             ## in that state.
             if use_torch_state_lengths:
-                for s in constants.STATE:
+                for s in STATE:
                     entrants = new_state[torch.logical_and(new_state != state, new_state==s)]
                     #print("entrants", entrants)
                     #print("state", state)
@@ -144,7 +145,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
                     #print("new state", new_state)
                     if entrants.nelement() > 0:
                         #print("s", s)
-                        assert s>constants.STATE.susceptible # no one should be entering the susceptible state (they start there)
+                        assert s>STATE.susceptible # no one should be entering the susceptible state (they start there)
                         entrant_lengths = state_length_sampler(s, entrants)
                         state_lengths[torch.logical_and(new_state != state, new_state==s)] = entrant_lengths
             else:
@@ -152,8 +153,8 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
                 new_state_lengths = get_state_lengths(states_that_changed)
 
                 state_lengths[new_state != state] = new_state_lengths
-            state_lengths[new_state == constants.STATE.susceptible] = np.inf
-            state_lengths[new_state == constants.STATE.removed] = np.inf
+            state_lengths[new_state == STATE.susceptible] = np.inf
+            state_lengths[new_state == STATE.removed] = np.inf
 
             state = new_state
 
@@ -161,7 +162,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         if duration is not None:
             run_flag = (t <= duration)
         else:
-            run_flag = state[state == constants.STATE.exposed].any() or state[state == constants.STATE.infectious].any() # keep running if anyone is exposed or infectious
+            run_flag = state[state == STATE.exposed].any() or state[state == STATE.infectious].any() # keep running if anyone is exposed or infectious
     
     ## send back to the CPU
     return_state = state.cpu().numpy()
@@ -169,6 +170,6 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #end = time.time()
     #print("total time: ", str(end - start))
   
-    return return_state != constants.STATE.susceptible
-    #return np.sum(state != constants.STATE.susceptible, axis=1) #include exposed and infectious states to catch boundary cases when time course has a fixed duration
-    #return np.sum(state == constants.STATE.removed, axis=1)
+    return return_state != STATE.susceptible
+    #return np.sum(state != STATE.susceptible, axis=1) #include exposed and infectious states to catch boundary cases when time course has a fixed duration
+    #return np.sum(state == STATE.removed, axis=1)

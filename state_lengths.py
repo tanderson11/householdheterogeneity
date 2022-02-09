@@ -1,5 +1,6 @@
 from settings import device
 from settings import constants
+from settings import STATE
 
 import numpy as np
 import torch
@@ -22,7 +23,7 @@ scale_vec=(std_vec**2)/mean_vec # This will contain scale values for each state
 # beta is given in accordance with the line beta = delta_t/torch_scale_vec[state], so having this fraction makes sense
 
 # some states have an infinite duration 
-inf_waiting_states = [constants.STATE.susceptible, constants.STATE.removed]
+inf_waiting_states = [STATE.susceptible, STATE.removed]
 shape_vec[inf_waiting_states] = np.inf
 scale_vec[inf_waiting_states] = np.inf
 mean_vec[inf_waiting_states] = np.inf
@@ -41,7 +42,7 @@ torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(device)
 gamma_DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device), torch.tensor([1.0]).to(device)) for alpha in torch_shape_vec]
 
 def gamma_state_length_sampler(new_state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
-    if new_state == constants.STATE.removed or new_state == constants.STATE.susceptible:
+    if new_state == STATE.removed or new_state == STATE.susceptible:
         return torch.full_like(entrants, 1e10, dtype=torch.double)
 
     dist = gamma_DISTS[new_state]
@@ -57,17 +58,17 @@ def gamma_state_length_sampler(new_state, entrants): #state is the constant of t
 from traits import LognormalTrait
 
 lognormal_DISTS = {
-    constants.STATE.infectious.value: LognormalTrait.from_natural_mean_variance(constants.infectious_period_duration_mean, constants.infectious_period_duration_std**2),
-    constants.STATE.exposed.value: LognormalTrait.from_natural_mean_variance(constants.latent_period_duration_mean, constants.latent_period_duration_std**2),
+    STATE.infectious.value: LognormalTrait.from_natural_mean_variance(constants.infectious_period_duration_mean, constants.infectious_period_duration_std**2),
+    STATE.exposed.value: LognormalTrait.from_natural_mean_variance(constants.latent_period_duration_mean, constants.latent_period_duration_std**2),
 }
 
 torch_lognormal_DISTS = {
-    constants.STATE.infectious.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[constants.STATE.infectious.value].mu, lognormal_DISTS[constants.STATE.infectious.value].sigma),
-    constants.STATE.exposed.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[constants.STATE.exposed.value].mu, lognormal_DISTS[constants.STATE.exposed.value].sigma),
+    STATE.infectious.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[STATE.infectious.value].mu, lognormal_DISTS[STATE.infectious.value].sigma),
+    STATE.exposed.value: torch.distributions.log_normal.LogNormal(lognormal_DISTS[STATE.exposed.value].mu, lognormal_DISTS[STATE.exposed.value].sigma),
 }
 
 def lognormal_state_length_sampler(new_state, entrants):
-    if new_state == constants.STATE.removed or new_state == constants.STATE.susceptible:
+    if new_state == STATE.removed or new_state == STATE.susceptible:
         return torch.full_like(entrants, 1e10, dtype=torch.double)
     
     dist = torch_lognormal_DISTS[new_state]

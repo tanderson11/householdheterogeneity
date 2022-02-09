@@ -102,7 +102,7 @@ class Model:
 
         def seed_one_by_susceptibility(self):
             n_hh = len(self.df["size"])
-            initial_state = self.is_occupied * constants.STATE.susceptible
+            initial_state = self.is_occupied * STATE.susceptible
             
             sus_p = [np.squeeze(self.susceptibility[i,:,:]) for i in range(n_hh)]
             choices = [np.random.choice(range(len(sus)), 1, p=sus/np.sum(sus)) for sus in sus_p] # susceptibility/total_sus chance of getting seed --> means this works with small households
@@ -110,11 +110,11 @@ class Model:
             #import pdb; pdb.set_trace()
             choices = np.array(choices).reshape(n_hh)
 
-            initial_state[np.arange(n_hh), choices] = constants.STATE.exposed
+            initial_state[np.arange(n_hh), choices] = STATE.exposed
             return initial_state
 
         def seed_zero(self):
-            initial_state = self.is_occupied * constants.STATE.susceptible
+            initial_state = self.is_occupied * STATE.susceptible
             return initial_state
 
         def simulate_population(self, **kwargs):

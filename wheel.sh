@@ -24,13 +24,13 @@ PYTHON_VERSION="39"
 
 #pip wheel --no-deps --no-cache-dir --log build.log "seaborn"
 
-pip wheel --no-deps --no-cache-dir --log build.log "torch"
+#pip wheel --no-deps --no-cache-dir --log build.log "torch"
 
-#export PYARROW_BUNDLE_ARROW_CPP_HEADERS=0
-#export PYARROW_WITH_PARQUET=1
-#export ARROW_INCLUDE_DIR=$(brew --prefix apache-arrow)/include
-#export ARROW_LIB_DIR=$(brew --prefix apache-arrow)/lib
-#pip wheel --no-deps --no-cache-dir --log build.log "pyarrow==4.0.0"
+export PYARROW_BUNDLE_ARROW_CPP_HEADERS=0
+export PYARROW_WITH_PARQUET=1
+export ARROW_INCLUDE_DIR=$(brew --prefix apache-arrow)/include
+export ARROW_LIB_DIR=$(brew --prefix apache-arrow)/lib
+pip wheel --no-deps --no-cache-dir --log build.log "pyarrow==6.0.1"
 
 
 

@@ -1,5 +1,6 @@
 import numpy as np
 from settings import constants
+from settings import STATE
 import traits
 import abc
 
@@ -56,14 +57,14 @@ def importation_rate_from_cumulative_prob(cumulative_probability, duration):
 
 def household_beta_from_hsar(hsar):
     # gamma distributed state lengths with shape k and period length T
-    T = constants.mean_vec[constants.STATE.infectious]
-    k = constants.shape_vec[constants.STATE.infectious]
+    T = constants.mean_vec[STATE.infectious]
+    k = constants.shape_vec[STATE.infectious]
     return (k/T) * ((1/(1-hsar)**(1/k))-1) # household beta as determined by hsar
 
 def solve_for_beta_implicitly_no_state_lengths(hsar, trait, N=20000):
     # simple case with one trait and constant state lengths
     trait_draws = trait.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    T = constants.mean_vec[constants.STATE.infectious]
+    T = constants.mean_vec[STATE.infectious]
     def g(beta):
         return np.sum(np.array([1 - np.exp(-1 * beta * T * f) for f in trait_draws])) - N * hsar
 
@@ -73,7 +74,7 @@ def solve_for_beta_implicitly_no_state_lengths(hsar, trait, N=20000):
 
 def sample_hsar_no_state_lengths(beta, trait, N=20000):
     trait_draws = trait.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    T = constants.mean_vec[constants.STATE.infectious]
+    T = constants.mean_vec[STATE.infectious]
 
     hsar_draws = np.array([1 - np.exp(-1 * beta * f * T) for f in trait_draws])
     hsar = np.average(hsar_draws)
@@ -82,10 +83,10 @@ def sample_hsar_no_state_lengths(beta, trait, N=20000):
 def sample_hsar_with_state_lengths(beta, sus, inf, N=20000):
     sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
     inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    #T = constants.mean_vec[constants.STATE.infectious]
+    #T = constants.mean_vec[STATE.infectious]
 
     from torch_forward_simulation import torch_state_length_sampler
-    length_draws = np.array(torch_state_length_sampler(constants.STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
+    length_draws = np.array(torch_state_length_sampler(STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
 
     hsar_draws = np.array([1 - np.exp(-1 * beta * s * f * T) for s,f,T in zip(sus_draws, inf_draws, length_draws)])
     hsar = np.average(hsar_draws)
@@ -96,7 +97,7 @@ def implicit_solve_for_beta(hsar, sus, inf, N=20000):
     inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
 
     from torch_forward_simulation import torch_state_length_sampler
-    state_length_draws = np.array(torch_state_length_sampler(constants.STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
+    state_length_draws = np.array(torch_state_length_sampler(STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
     #import pdb; pdb.set_trace()
     # a function that has a root when the populational average hsar (over N samples) is equal to the given hsar
     def g(beta):
@@ -166,7 +167,7 @@ def lognormal_s80_solve(s80):
 
 from state_lengths import lognormal_DISTS
 def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
-    infectious_period_distribution = lognormal_DISTS[constants.STATE.infectious]
+    infectious_period_distribution = lognormal_DISTS[STATE.infectious]
     mu_t, sigma_t = infectious_period_distribution.mu, infectious_period_distribution.sigma
 
     mu_s, sigma_s = sus.mu, sus.sigma

@@ -2,11 +2,13 @@ import enum
 from typing import NamedTuple
 import numpy as np
 import pandas as pd
-#import pyarrow.parquet as pq
-#import pyarrow as pa
+import pyarrow.parquet as pq
+import pyarrow as pa
 import os
+import json
 
 from settings import constants
+from settings import STATE
 import state_lengths as state_length_module
 import traits
 from torch_forward_simulation import torch_forward_time
@@ -50,7 +52,7 @@ class Model(NamedTuple):
             dfs.append(group)
         return pd.concat(dfs)
 
-    def run_grid(self, sizes, region, outpath):
+    def run_grid(self, sizes, region, progress_path=None):
         axis_data = list(region.axes_by_name.items())
         key1, axis1 = axis_data[0]
         key2, axis2 = axis_data[1]
@@ -89,11 +91,14 @@ class Model(NamedTuple):
             two_d_df = pd.concat(one_d_dfs)
             #return two_d_df
             two_d_dfs.append(two_d_df)
-            #parquet_df = pa.Table.from_pandas(two_d_df)
-            #pq.write_table(parquet_df, os.path.join(outpath, f"pool_df-{key1}-{v1:.3f}.parquet"))
+            parquet_df = pa.Table.from_pandas(two_d_df)
+            pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
             two_d_df = None
         three_d_df = pd.concat(two_d_dfs)
-        return three_d_df
+
+        metadata = Metadata(constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
+
+        return Results(three_d_df, metadata)
 
 class Population(NamedTuple):
     is_occupied: np.ndarray
@@ -113,12 +118,12 @@ class Population(NamedTuple):
         row_hits, one_index_per_row = np.unique(hits[0], return_index=True)
         col_hits = hits[1][one_index_per_row]
 
-        initial_state = self.is_occupied * constants.STATE.susceptible
-        initial_state[row_hits, col_hits] = constants.STATE.exposed
+        initial_state = self.is_occupied * STATE.susceptible
+        initial_state[row_hits, col_hits] = STATE.exposed
         return initial_state
 
     def seed_none(self):
-        initial_state = self.is_occupied * constants.STATE.susceptible
+        initial_state = self.is_occupied * STATE.susceptible
         return initial_state
 
     def make_initial_state(self, initial_seeding):
@@ -143,13 +148,19 @@ class SimulationRegion(NamedTuple):
 class Metadata(NamedTuple):
     constants: dict
     model: Model
-    inputs: dict
     population: dict
-    region: SimulationRegion
+    parameters: type
 
 class Results(NamedTuple):
     df: pd.DataFrame
     metadata: Metadata
+
+    def save(self, root, filename):
+        parquet_df = pa.Table.from_pandas(self.df)
+        pq.write_table(parquet_df, os.path.join(root, filename + "_df.parquet"))
+
+        with open(os.path.join(root, filename + '_metadata.json'), 'w') as f:
+            json.dump(self.metadata, f)
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
@@ -167,7 +178,7 @@ class PopulationStructure:
         self.max_size = self.sizes_table.max()
         #import pdb; pdb.set_trace()
         self.is_occupied = np.array([[True if i < hh_size else False for i in range(self.max_size)] for hh_size in self.sizes_table], dtype=bool) # 1. if individual exists else 0.
-        
+
         self.total_households = len(self.sizes_table)
 
         self._nd_eyes = np.stack([np.eye(self.max_size,self.max_size) for i in range(self.total_households)]) # we don't worry about small households here because it comes out in a wash later
@@ -219,7 +230,7 @@ class PopulationStructure:
         ############
 
         infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.connectivity_matrix, importation_probability, secondary_infections=secondary_infections)
-                        
+
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
 
