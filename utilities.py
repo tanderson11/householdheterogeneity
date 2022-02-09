@@ -203,6 +203,19 @@ class ModelInputs(abc.ABC):
         '''
         pass
 
+class Lognormal_Variance_Variance_Beta_Inputs(ModelInputs):
+    def __init__(self, sus_variance, inf_variance, household_beta) -> None:
+        self.sus_varaince = sus_variance
+        self.inf_variance = inf_variance
+        self.household_beta = household_beta
+
+    def to_normal_inputs(self):
+        return {
+            'household_beta': self.household_beta,
+            'sus_dist': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.sus_varaince),
+            'inf_dist': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.inf_variance),
+        }
+
 class S80_P80_SAR_Inputs(ModelInputs):
     def __init__(self, s80, p80, SAR) -> None:
         self.s80 = s80
