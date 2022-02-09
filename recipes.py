@@ -28,7 +28,7 @@ class ImportationRegime(NamedTuple):
 
 class Model(NamedTuple):
     # simulation configuration
-    state_lengths: str = StateLengthConfig.gamma.value
+    state_lengths: str = StateLengthConfig.lognormal.value
     initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
