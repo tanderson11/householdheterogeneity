@@ -61,7 +61,6 @@ class ConstantTrait(Trait):
 
     def as_column(self):
         '''For when we log this trait in a pandas dataframe.'''
-        assert(self.mean == 1)
         return ('constant_value', self.trait_value)
 
 class GammaTrait(Trait):
