@@ -52,7 +52,7 @@ class ConstantTrait(Trait):
         return is_occupied * self.trait_value
 
     def __repr__(self):
-        return "Constant trait named {0} with value {1:.2f}".format(self.trait_value)
+        return "Constant trait with value {0:.2f}".format(self.trait_value)
 
     def as_dict(self):
         self_dict = super().as_dict()

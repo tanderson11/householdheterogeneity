@@ -80,11 +80,12 @@ class Model(NamedTuple):
 
                     point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist)
                     point_results = pd.DataFrame(point_results.groupby(['size','infections']).size())
+                    point_results.name = 'count'
 
                     trait_parameter_name, trait_parameter_value = sus_dist.as_column()
-                    point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.2f}")
+                    point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
                     trait_parameter_name, trait_parameter_value = inf_dist.as_column()
-                    point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.2f}")
+                    point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
                     point_results['beta'] = np.float(f"{beta:.3f}")
 
                     point_results[key1] = v1
@@ -101,7 +102,8 @@ class Model(NamedTuple):
             two_d_df = None
         three_d_df = pd.concat(two_d_dfs)
 
-        return Results(three_d_df, metadata)
+        df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
+        return Results(df, metadata)
 
 class Population(NamedTuple):
     is_occupied: np.ndarray
@@ -158,6 +160,22 @@ class Metadata(NamedTuple):
         with open(os.path.join(root, 'metadata.json'), 'w') as f:
             json.dump(self, f)
 
+    @classmethod
+    def load(cls, path):
+        with open(path, 'r') as f:
+            data = json.load(f)
+
+        #import pdb; pdb.set_trace()
+        data[cls._fields.index('model')] = Model(*data[cls._fields.index('model')])
+        metadata = cls(*data)
+        return metadata
+
+    def check_compatibility(self, m2):
+        for i, field in enumerate(self._fields):
+            if field != 'population' and self[i] != m2[i]:
+                return False
+        return True
+
 class Results(NamedTuple):
     df: pd.DataFrame
     metadata: Metadata
@@ -166,6 +184,58 @@ class Results(NamedTuple):
         parquet_df = pa.Table.from_pandas(self.df)
         pq.write_table(parquet_df, os.path.join(root, filename + "_df.parquet"))
         self.metadata.save(root)
+
+    @classmethod
+    def load(cls, root, filename='results_df.parquet', from_parts=False):
+        if not from_parts:
+            df = pq.read_table(os.path.join(root, filename)).to_pandas()
+        else:
+            print("Compiling results df from parts. Treating all files with extension .parquet as parts.")
+            parts = []
+            observed_sizes = []
+            for f in sorted(os.listdir(root)):
+                if '.parquet' not in f:
+                    continue
+                part_df = pq.read_table(os.path.join(root, f)).to_pandas()
+                #import pdb; pdb.set_trace()
+                observed_sizes.append(part_df.reset_index()['size'].unique())
+                parts.append(part_df)
+            for x in observed_sizes:
+                assert (observed_sizes[0] == x).all(), "Df parts usually come from a process that ensures equal sizes."
+            df = pd.concat(parts)
+
+        metadata = Metadata.load(os.path.join(root, 'metadata.json'))
+        df = df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
+        df = df.rename(columns={"0":"count"}) # old tables might have improperly labeled count column
+
+        return cls(df, metadata)
+
+    def combine(self, r2):
+        if not self.metadata.check_compatibility(r2.metadata):
+            raise ValueError("Tried to combine two results objects with incompatible metadata.")
+        # combine dfs: concat and then update intersecting components to be the sum of the two components
+        df3 = pd.concat([self.df, r2.df])
+        #print("Duplicates?", df3.index.duplicated().any())
+        df3 = df3[~(df3.index.duplicated(keep='first'))]
+        #print("Duplicates?", df3.index.duplicated().any())
+        intersection = (self.df["count"] + r2.df["count"]).dropna()
+        df3.loc[intersection.index, "count"] = intersection
+
+        # update the sizes dictionary to include the new min and max # of households at each size
+        size_mins = df3.groupby(["s80", "p80", "SAR", "size"]).sum()['count'].groupby('size').min()
+        size_maxs = df3.groupby(["s80", "p80", "SAR", "size"]).sum()['count'].groupby('size').max()
+        size_dict = self.metadata.population.copy()
+        for s in df3.index.unique(level="size"):
+            # simultaneously update min,max sizes and also check that every size is present in every slice
+            mi = size_mins.loc[s]
+            ma = size_maxs.loc[s]
+            size_dict[s] = (mi,ma) if mi != ma else mi
+        # need to update sizes dictionary based on results
+        # need to work out an example where the combined parts don't share all sizes
+        return self.__class__(df3, self.metadata._replace(population=size_dict))
+
+
+
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):

@@ -138,7 +138,7 @@ def lognormal_p80_solve(p80):
         Returns a function that accepts a variance
         and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
         '''
-        assert p80 < 0.8
+        assert p80 <= 0.78, "fitting is not well behaved for p80 > 0.78"
         def objective_function(variance):
             sigma = np.sqrt(np.log(variance + 1))
             mu = -1/2 * np.log(variance + 1)
@@ -170,8 +170,16 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     infectious_period_distribution = lognormal_DISTS[STATE.infectious]
     mu_t, sigma_t = infectious_period_distribution.mu, infectious_period_distribution.sigma
 
-    mu_s, sigma_s = sus.mu, sus.sigma
-    mu_f, sigma_f = inf.mu, inf.sigma
+    if isinstance(sus, traits.ConstantTrait):
+        assert sus.trait_value == 1., "Unimplemented calculation of beta with constant trait where mean != 1"
+        mu_s, sigma_s = 0.,0.
+    else:
+        mu_s, sigma_s = sus.mu, sus.sigma
+    if isinstance(inf, traits.ConstantTrait):
+        assert inf.trait_value == 1., "Unimplemented calculation of beta with constant trait where mean != 1"
+        mu_f, sigma_f = 0., 0.
+    else:
+        mu_f, sigma_f = inf.mu, inf.sigma
 
     mu = mu_t + mu_s + mu_f
     sigma = np.sqrt(sigma_t**2 + sigma_s**2 + sigma_f**2)
@@ -223,15 +231,22 @@ class S80_P80_SAR_Inputs(ModelInputs):
         self.SAR = SAR
 
     def to_normal_inputs(self):
-        sus_variance = lognormal_s80_solve(self.s80)
-        assert(sus_variance.success is True)
-        sus_variance = sus_variance.x[0]
-        inf_variance = lognormal_p80_solve(self.p80)
-        assert(inf_variance.success is True)
-        inf_variance = inf_variance.x[0]
+        if self.s80 == 0.8:
+            sus_dist = traits.ConstantTrait()
+        else:
+            sus_variance = lognormal_s80_solve(self.s80)
+            assert(sus_variance.success is True)
+            sus_variance = sus_variance.x[0]
+            sus_dist = traits.LognormalTrait.from_natural_mean_variance(1., sus_variance)
 
-        sus_dist = traits.LognormalTrait.from_natural_mean_variance(1., sus_variance)
-        inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
+        if self.p80 == 0.8:
+            inf_dist = traits.ConstantTrait()
+        else:
+            inf_variance = lognormal_p80_solve(self.p80)
+            assert(inf_variance.success is True)
+            inf_variance = inf_variance.x[0]
+            inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
+        
         beta = beta_from_sar_and_lognormal_traits(self.SAR, sus_dist, inf_dist)
 
         return {
