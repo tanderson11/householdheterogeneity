@@ -210,7 +210,7 @@ class Results(NamedTuple):
 
         return cls(df, metadata)
 
-    def combine(self, r2):
+    def combine(self, r2, decimal_places=3):
         if not self.metadata.check_compatibility(r2.metadata):
             raise ValueError("Tried to combine two results objects with incompatible metadata.")
         # combine dfs: concat and then update intersecting components to be the sum of the two components
@@ -220,6 +220,9 @@ class Results(NamedTuple):
         #print("Duplicates?", df3.index.duplicated().any())
         intersection = (self.df["count"] + r2.df["count"]).dropna()
         df3.loc[intersection.index, "count"] = intersection
+
+        df3 = df3.rename(index=lambda val: round(val, decimal_places))
+        df3 = df3.sort_index()
 
         # update the sizes dictionary to include the new min and max # of households at each size
         size_mins = df3.groupby(["s80", "p80", "SAR", "size"]).sum()['count'].groupby('size').min()
