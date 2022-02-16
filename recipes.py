@@ -237,8 +237,52 @@ class Results(NamedTuple):
         # need to work out an example where the combined parts don't share all sizes
         return self.__class__(df3, self.metadata._replace(population=size_dict))
 
+    def find_frequencies(self, minimum_size=20000, inplace=True):
+        for _, minimum in self.metadata.population.items():
+            if isinstance(minimum, tuple) or isinstance(minimum, list):
+                minimum, _ = minimum
+            assert minimum > minimum_size, "number of households was below minimum required in at least one part of df"
 
+        frequencies = self.df["count"]/(self.df.groupby(self.metadata.parameters+["size"]).sum()["count"])
+        if inplace:
+            self.df['frequency'] = frequencies
+        return frequencies
 
+    def resample(self, parameter_point, population_sizes):
+        if 'frequency' not in self.df.columns:
+            self.find_frequencies()
+
+        outer_index_names = self.df.index.names[:len(parameter_point)]
+        point_df = self.df.loc[parameter_point].copy()
+
+        # use the frequencies of different # of infections (for different size households)
+        # get a new df that treats the frequencies as probabilities of occurence
+        defaults = {(s,i):0 for s in population_sizes.keys() for i in range(1, s+1)}
+        for size, number in population_sizes.items():
+            size_df = point_df.loc[size]
+            die_faces = tuple(size_df.index)
+            die_weights = tuple(size_df['frequency'])
+            infections, counts = np.unique(np.random.choice(die_faces, number, p=die_weights), return_counts=True)
+            # count up the occurences in a way that we can then insert into our indexed df
+            occurences = {(size, i):c for i,c in zip(infections, counts)}
+            defaults.update(occurences)
+
+        point_df["count"].update(pd.Series(defaults))
+
+        # compute which sizes aren't included in our new population
+        drop_sizes = []
+        for s in point_df.index.unique(level='size'):
+            if s not in population_sizes.keys():
+                drop_sizes.append(s)
+
+        # if we didn't resample for a certain size, drop it
+        point_df = point_df.drop(drop_sizes)
+        # frequency, which should exist, is no longer meaningful / accurate: drop it
+        point_df = point_df.drop("frequency", axis=1)
+        # add back the indices levels that we loc'd through at the start
+        for name, value in zip(reversed(outer_index_names), reversed(parameter_point)):
+            point_df = pd.concat({value: point_df}, names=[str(name)])
+        return point_df
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
