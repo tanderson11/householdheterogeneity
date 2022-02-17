@@ -284,6 +284,38 @@ class Results(NamedTuple):
             point_df = pd.concat({value: point_df}, names=[str(name)])
         return point_df
 
+    @staticmethod
+    def repair_missing_counts_in_group(group):
+        sizes = list(group.index.unique(level='size'))
+        initial_labels = group.index.names
+        assert len(sizes) == 1
+        size = sizes[0]
+        # we want all the different number of infections to be present
+        new_index = range(1, size+1)
+
+        reindexed = group.reset_index().set_index('infections').reindex(new_index)
+        # count is 0 everywhere it was missing before
+        reindexed['count'].fillna(value=0., inplace=True)
+        try:
+            # same with frequency
+            reindexed['frequency'].fillna(value=0., inplace=True)
+        except KeyError:
+            pass
+        # otherwise ffill
+        reindexed = reindexed.ffill()
+        # because we've set and reset the index, the groups aren't being combined properly upstream
+        # we drop the first few levels of the index to correct for this (they'll be present after aggregation)
+        reindexed = reindexed.drop(initial_labels[:-1], axis=1)
+
+        return reindexed
+
+    def repair_missing_counts(self, inplace=False):
+        grouped = self.df.groupby(self.metadata.parameters + ["size"])
+        repaired = grouped.apply(lambda g: self.repair_missing_counts_in_group(g))
+        if inplace:
+            self.df = repaired
+        return repaired
+
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
         assert isinstance(household_sizes, dict)
