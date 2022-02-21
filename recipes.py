@@ -49,6 +49,7 @@ class Model(NamedTuple):
             if trials > 1:
                 count = sizes[size]
                 trialnums = [t for t in range(trials) for i in range(count)]
+                group['trial'] = trialnums
             dfs.append(group)
         return pd.concat(dfs)
 
@@ -248,7 +249,17 @@ class Results(NamedTuple):
             self.df['frequency'] = frequencies
         return frequencies
 
-    def resample(self, parameter_point, population_sizes):
+    def resample(self, parameter_point, population_sizes, trials=1):
+        dfs = []
+        for i in range(trials):
+            x = self.resample_once(parameter_point, population_sizes)
+            x = pd.concat({i: x}, names=['trial'])
+            dfs.append(x)
+        samples = pd.concat(dfs)
+        samples = samples.reindex(samples.index.rename(['trial'] + ["sample " + key for key in self.metadata.parameters] + ["size", "infections"]))
+        return samples
+
+    def resample_once(self, parameter_point, population_sizes):
         if 'frequency' not in self.df.columns:
             self.find_frequencies()
 
@@ -257,6 +268,8 @@ class Results(NamedTuple):
 
         # use the frequencies of different # of infections (for different size households)
         # get a new df that treats the frequencies as probabilities of occurence
+
+        # presumptively: 0 for the counts of each infection until we update
         defaults = {(s,i):0 for s in population_sizes.keys() for i in range(1, s+1)}
         for size, number in population_sizes.items():
             size_df = point_df.loc[size]
@@ -282,6 +295,7 @@ class Results(NamedTuple):
         # add back the indices levels that we loc'd through at the start
         for name, value in zip(reversed(outer_index_names), reversed(parameter_point)):
             point_df = pd.concat({value: point_df}, names=[str(name)])
+
         return point_df
 
     @staticmethod
@@ -309,12 +323,10 @@ class Results(NamedTuple):
 
         return reindexed
 
-    def repair_missing_counts(self, inplace=False):
+    def repair_missing_counts(self):
         grouped = self.df.groupby(self.metadata.parameters + ["size"])
         repaired = grouped.apply(lambda g: self.repair_missing_counts_in_group(g))
-        if inplace:
-            self.df = repaired
-        return repaired
+        return Results(repaired, self.metadata)
 
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):

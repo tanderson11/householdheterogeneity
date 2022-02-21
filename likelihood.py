@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 
-def counts_from_empirical(empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"]):
-    #counts = empirical.groupby(keys + baseline_only_keys + household_keys)["model"].count()
-    counts = empirical.groupby(parameter_keys + baseline_only_keys + household_keys).size()
+def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trialnum"], household_keys=["size", "infections"]):
+    #counts = empirical.groupby(keys + sample_only_keys + household_keys)["model"].count()
+    counts = empirical.groupby(parameter_keys + sample_only_keys + household_keys).size()
     #import pdb; pdb.set_trace()
-    counts = counts.reindex(counts.index.rename(["baseline " + key for key in parameter_keys] + baseline_only_keys + household_keys))
+    counts = counts.reindex(counts.index.rename(["sample " + key for key in parameter_keys] + sample_only_keys + household_keys))
     counts.name = "count"
     return counts
 
@@ -45,16 +45,16 @@ def compute_frequencies(comparison, grouping):
         frequencies = frequencies[~duplicated]
     return frequencies
 
-def logl_from_data(synthetic, empirical, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"], frequency_df=None):
+def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["trialnum"], household_keys=["size", "infections"], frequency_df=None):
     if frequency_df is not None:
         frequencies = frequency_df
     else:
         frequencies = frequencies_from_synthetic(synthetic, parameter_keys, household_keys=household_keys)
-    counts = counts_from_empirical(empirical, parameter_keys, baseline_only_keys=baseline_only_keys, household_keys=household_keys)
-    logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, baseline_only_keys=baseline_only_keys, household_keys=household_keys)
+    counts = counts_from_empirical(empirical, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
+    logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
     return logl
 
-def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, baseline_only_keys=["trialnum"], household_keys=["size", "infections"]):
+def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trialnum"], household_keys=["size", "infections"]):
     log_freqs = np.log(frequencies)
     log_freqs.name = "log freq"
 
@@ -64,14 +64,14 @@ def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, baseli
     counts["dummy"] = 0.0
     # we make a table of the log frequency values, and then we just have to 'line it up' with the counts and do arithmetic, most of the work is in lining it up
     merged = pd.merge(counts, log_freqs, how='left', on=household_keys+["dummy"])
-
+    #print(merged)
     #import pdb; pdb.set_trace()
-    indexed_merge = merged.set_index(["baseline " + key for key in parameter_keys] + baseline_only_keys + parameter_keys + household_keys)
+    indexed_merge = merged.set_index([sample_prefix + key for key in parameter_keys] + sample_only_keys + parameter_keys + household_keys)
     indexed_merge["logl"] = indexed_merge["log freq"] * indexed_merge["count"]
 
     #import pdb; pdb.set_trace()
     try:
-        logls = indexed_merge.groupby(["baseline " + key for key in parameter_keys] + baseline_only_keys + parameter_keys)["logl"]
+        logls = indexed_merge.groupby(["sample " + key for key in parameter_keys] + sample_only_keys + parameter_keys)["logl"]
     except ValueError:
         logls = indexed_merge['logl']
 
