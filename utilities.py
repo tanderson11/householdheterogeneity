@@ -193,7 +193,7 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
         return SAR_objective_function
 
     SAR_function = SAR_objective_function_crafter(SAR)
-    beta = scipy.optimize.least_squares(SAR_function, np.array((0.05)), bounds=((1.0e-6), (np.inf)))
+    beta = scipy.optimize.least_squares(SAR_function, np.array((0.05)), bounds=((1.0e-6), (0.999999)))
     assert(beta.success is True)
     return beta.x[0]
 

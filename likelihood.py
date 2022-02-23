@@ -69,7 +69,9 @@ def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample
     indexed_merge = merged.set_index([sample_prefix + key for key in parameter_keys] + sample_only_keys + parameter_keys + household_keys)
     indexed_merge["logl"] = indexed_merge["log freq"] * indexed_merge["count"]
 
-    #import pdb; pdb.set_trace()
+    if (indexed_merge.index.to_frame().isna()).any().any():
+        raise ValueError("NaN in merged index suggesting that not all infection counts were present. Try running results.repair_mising_counts")
+
     try:
         logls = indexed_merge.groupby(["sample " + key for key in parameter_keys] + sample_only_keys + parameter_keys)["logl"]
     except ValueError:
