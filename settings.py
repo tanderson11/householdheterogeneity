@@ -1,7 +1,6 @@
 # A file that contains settings for using the module
-
-#GPU = False
+from constants import updated_constants as constants
+from constants import STATE
 
 import torch
-GPU = "cuda:0"
-torch.cuda.set_device(GPU)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
