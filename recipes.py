@@ -400,9 +400,7 @@ class PopulationStructure:
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
 
-        series = pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
-        series.name = 'infections'
-        return series
+        return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
 
 if __name__ == '__main__':
     x = Model()
