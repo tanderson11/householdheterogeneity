@@ -250,6 +250,7 @@ class Results(NamedTuple):
         return frequencies
 
     def resample(self, parameter_point, population_sizes, trials=1):
+        self.find_frequencies()
         dfs = []
         for i in range(trials):
             x = self.resample_once(parameter_point, population_sizes)
@@ -260,9 +261,6 @@ class Results(NamedTuple):
         return samples
 
     def resample_once(self, parameter_point, population_sizes):
-        if 'frequency' not in self.df.columns:
-            self.find_frequencies()
-
         outer_index_names = self.df.index.names[:len(parameter_point)]
         point_df = self.df.loc[parameter_point].copy()
 
