@@ -2,6 +2,9 @@
 .#*
 *~
 
+# VS code
+.vscode/
+
 # Private git token
 git_token.py
 
@@ -23,6 +26,8 @@ final_push/
 empirical/
 slides/
 new_parameters/
+batched_figs/
+test/
 
 # logs
 *.log
