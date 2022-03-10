@@ -33,7 +33,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
 
     state_lengths[state == STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
-    state_lengths[state == STATE.removed]     = np.inf     ## inf b/c doesn't change from removed
+    state_lengths[state == STATE.removed]     = np.inf ## inf b/c doesn't change from removed
     t = 0
 
     import_flag = importation_probability.any()

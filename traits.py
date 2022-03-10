@@ -156,11 +156,3 @@ class LognormalTrait(Trait):
 
     def __repr__(self) -> str:
         return f"LognormalTrait({self.as_dict()})"
-
-if __name__ == '__main__':
-    t = GammaTrait(mean=1.0, variance=1.0)
-    t.plot(samples=1000)
-    plt.show()
-
-    #BiModalTrait(2.6).plot(samples=1000)
-    #plt.show()
