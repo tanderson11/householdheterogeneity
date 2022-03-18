@@ -47,118 +47,38 @@ def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
         i += 1
 
 ### Parametrization utility functions
-
-def importation_rate_from_cumulative_prob(cumulative_probability, duration):
-    if duration==0:
-        print("WARNING: importation rate calculation received duration=0")
-        return 0.
-    else:
-        return 1-(1-cumulative_probability)**(1/duration) # converting risk over study period to daily risk
-
-def household_beta_from_hsar(hsar):
-    # gamma distributed state lengths with shape k and period length T
-    T = constants.mean_vec[STATE.infectious]
-    k = constants.shape_vec[STATE.infectious]
-    return (k/T) * ((1/(1-hsar)**(1/k))-1) # household beta as determined by hsar
-
-def solve_for_beta_implicitly_no_state_lengths(hsar, trait, N=20000):
-    # simple case with one trait and constant state lengths
-    trait_draws = trait.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    T = constants.mean_vec[STATE.infectious]
-    def g(beta):
-        return np.sum(np.array([1 - np.exp(-1 * beta * T * f) for f in trait_draws])) - N * hsar
-
-    from scipy.optimize import fsolve
-    beta = fsolve(g, 0.03)
-    return beta
-
-def sample_hsar_no_state_lengths(beta, trait, N=20000):
-    trait_draws = trait.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    T = constants.mean_vec[STATE.infectious]
-
-    hsar_draws = np.array([1 - np.exp(-1 * beta * f * T) for f in trait_draws])
-    hsar = np.average(hsar_draws)
-    return hsar
-
-def sample_hsar_with_state_lengths(beta, sus, inf, N=20000):
-    sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    #T = constants.mean_vec[STATE.infectious]
-
-    from torch_forward_simulation import torch_state_length_sampler
-    length_draws = np.array(torch_state_length_sampler(STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
-
-    hsar_draws = np.array([1 - np.exp(-1 * beta * s * f * T) for s,f,T in zip(sus_draws, inf_draws, length_draws)])
-    hsar = np.average(hsar_draws)
-    return hsar
-
-def implicit_solve_for_beta(hsar, sus, inf, N=20000):
-    sus_draws = sus.draw_from_distribution(np.full((N,), True, dtype='bool'))
-    inf_draws = inf.draw_from_distribution(np.full((N,), True, dtype='bool'))
-
-    from torch_forward_simulation import torch_state_length_sampler
-    state_length_draws = np.array(torch_state_length_sampler(STATE.infectious, np.full((N,), True, dtype='bool')).cpu()) * constants.delta_t
-    #import pdb; pdb.set_trace()
-    # a function that has a root when the populational average hsar (over N samples) is equal to the given hsar
-    def g(beta):
-        return np.sum(np.array([1 - np.exp(-1 * beta * T * f * s) for s,f,T in zip(sus_draws, inf_draws, state_length_draws)])) - N * hsar
-
-    from scipy.optimize import fsolve
-    beta = fsolve(g, 0.03) # 0.03 = x0
-    return beta[0]
-
 import scipy.optimize
-def make_objective_function(percentile, target_fraction):
-    def gamma_objective_function(x):
-        '''A function that has the value 0 when the top {percentile} percent in the trait hold {target_fraction} fraction of the population-wide total of the trait.'''
-        if x < 0: x = 0
-
-        trait = traits.GammaTrait(mean=1.0, variance=x)
-        sample = trait.draw_from_distribution(np.full((1000000,1), True, dtype=bool))
-        fraction_held_in_top_percentile = np.sum(np.sort(sample, axis=0)[int(percentile/100*len(sample)):]/np.sum(sample))
-        #print(x, fraction_held_in_top_percentile, target_fraction - fraction_held_in_top_percentile)
-        return target_fraction - fraction_held_in_top_percentile
-    return gamma_objective_function
-
-def find_gamma_target_variance(percentile, target_fraction, method='fsolve'):
-    func = make_objective_function(percentile, target_fraction)
-    #print("Test:", [2.3], func(2.3))
-    if method == 'least squares':
-        root = scipy.optimize.least_squares(func, x0=0., bounds=(0., 100))
-    elif method == 'fsolve':
-        root = scipy.optimize.fsolve(func, x0=0.)
-    return root[0]
-
+import scipy.integrate
 import scipy.stats as stats
+
+def objective_function_crafter(p80):
+    '''
+    Takes in the desired p80
+
+    Returns a function that accepts a variance
+    and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
+    '''
+    assert p80 <= 0.78, "fitting is not well behaved for p80 > 0.78"
+    def objective_function(variance):
+        sigma = np.sqrt(np.log(variance + 1))
+        mu = -1/2 * np.log(variance + 1)
+        rv = stats.lognorm(s=sigma, scale=np.exp(mu))
+
+        # we want x80 with F(x80) = p80
+        x80_defining_function = lambda x: np.abs(1 - p80 - rv.cdf(x))
+        x80 = scipy.optimize.fsolve(x80_defining_function, 0.5)[0]
+
+        integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
+        #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
+        return np.abs(0.8 - 1.0 + integral)
+    return objective_function
+
+def least_squares_solve(p80):
+    objective_function = objective_function_crafter(p80)
+    variance = scipy.optimize.least_squares(objective_function, np.array((1.0)), bounds=((1.0e-6), (np.inf)))
+    return variance
+
 def lognormal_p80_solve(p80):
-    def objective_function_crafter(p80):
-        '''
-        Takes in the desired p80
-
-        Returns a function that accepts a variance
-        and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
-        '''
-        assert p80 <= 0.78, "fitting is not well behaved for p80 > 0.78"
-        def objective_function(variance):
-            sigma = np.sqrt(np.log(variance + 1))
-            mu = -1/2 * np.log(variance + 1)
-            rv = stats.lognorm(s=sigma, scale=np.exp(mu))
-
-            # we want x80 with F(x80) = p80
-            x80_defining_function = lambda x: np.abs(1 - p80 - rv.cdf(x))
-            x80 = scipy.optimize.fsolve(x80_defining_function, 0.5)[0]
-
-
-            integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
-            #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
-            return np.abs(0.8 - 1.0 + integral)
-        return objective_function
-
-    def least_squares_solve(p80):
-        objective_function = objective_function_crafter(p80)
-        variance = scipy.optimize.least_squares(objective_function, np.array((1.0)), bounds=((1.0e-6), (np.inf)))
-        return variance
-
     variance = least_squares_solve(p80)
     return variance
 

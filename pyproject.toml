@@ -19,6 +19,7 @@ matplotlib = "^3.4.2"
 ipython_unittest = "^0.3.1"
 ipykernel = "^6.8.0"
 pyarrow = "^7.0.0"
+curlybrace = {git = "https://github.com/tanderson11/curlybrace.git"}
 
 [tool.poetry.dev-dependencies]
 jupyter = "^1.0.0"
