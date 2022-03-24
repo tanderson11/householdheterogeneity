@@ -7,11 +7,11 @@ import pyarrow as pa
 import os
 import json
 
-from settings import constants
-from settings import STATE
-import state_lengths as state_length_module
-import traits
-from torch_forward_simulation import torch_forward_time
+from covid_households.settings import model_constants
+from covid_households.settings import STATE
+import covid_households.state_lengths as state_length_module
+import covid_households.traits as traits
+from covid_households.torch_forward_simulation import torch_forward_time
 
 class StateLengthConfig(enum.Enum):
     gamma = 'gamma'
@@ -59,7 +59,7 @@ class Model(NamedTuple):
         key2, axis2 = axis_data[1]
         key3, axis3 = axis_data[2]
 
-        metadata = Metadata(constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
+        metadata = Metadata(model_constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
         if progress_path is not None:
             metadata.save(progress_path)
 

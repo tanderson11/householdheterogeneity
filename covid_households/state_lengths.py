@@ -1,5 +1,5 @@
 from settings import device
-from settings import constants
+from settings import model_constants
 from settings import STATE
 
 import numpy as np
@@ -14,10 +14,10 @@ import torch
 # Get gamma distribution parameters
 
 mean_vec = np.array(
-      [1., constants.latent_period_duration_mean, constants.infectious_period_duration_mean, 1.])
+      [1., model_constants.latent_period_duration_mean, model_constants.infectious_period_duration_mean, 1.])
 ### Standard deviations (not used if exponential waiting times)
 std_vec=np.array(
-      [1., constants.latent_period_duration_std, constants.infectious_period_duration_std, 1.])
+      [1., model_constants.latent_period_duration_std, model_constants.infectious_period_duration_std, 1.])
 shape_vec=(mean_vec/std_vec)**2 # This will contain shape values for each state
 scale_vec=(std_vec**2)/mean_vec # This will contain scale values for each state
 # beta is given in accordance with the line beta = delta_t/torch_scale_vec[state], so having this fraction makes sense
@@ -47,7 +47,7 @@ def gamma_state_length_sampler(new_state, entrants): #state is the constant of t
 
     dist = gamma_DISTS[new_state]
     samples = dist.sample(entrants.shape)
-    beta = constants.delta_t/torch_scale_vec[new_state]
+    beta = model_constants.delta_t/torch_scale_vec[new_state]
     samples = torch.round(samples / beta)
     return torch.squeeze(1+samples) # Time must be at least 1.
 
@@ -58,8 +58,8 @@ def gamma_state_length_sampler(new_state, entrants): #state is the constant of t
 from traits import LognormalTrait
 
 lognormal_DISTS = {
-    STATE.infectious.value: LognormalTrait.from_natural_mean_variance(constants.infectious_period_duration_mean, constants.infectious_period_duration_std**2),
-    STATE.exposed.value: LognormalTrait.from_natural_mean_variance(constants.latent_period_duration_mean, constants.latent_period_duration_std**2),
+    STATE.infectious.value: LognormalTrait.from_natural_mean_variance(model_constants.infectious_period_duration_mean, model_constants.infectious_period_duration_std**2),
+    STATE.exposed.value: LognormalTrait.from_natural_mean_variance(model_constants.latent_period_duration_mean, model_constants.latent_period_duration_std**2),
 }
 
 torch_lognormal_DISTS = {
@@ -79,7 +79,7 @@ def lognormal_state_length_sampler(new_state, entrants):
     #import pdb; pdb.set_trace()
     dist = torch_lognormal_DISTS[new_state]
     samples = dist.sample(entrants.shape)
-    samples = torch.round(samples / constants.delta_t)
+    samples = torch.round(samples / model_constants.delta_t)
     return torch.squeeze(1+samples).double()
 
     

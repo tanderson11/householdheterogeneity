@@ -1,5 +1,5 @@
 import numpy as np
-from settings import constants
+from settings import model_constants
 from settings import STATE
 import traits
 import abc

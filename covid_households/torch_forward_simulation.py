@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from settings import device
-from settings import constants
+from settings import model_constants
 from settings import STATE
 
 def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
@@ -30,7 +30,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #print("device overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the device and should be fast ---
-    p_mat = (1-(1-beta_household)** constants.delta_t) * population_matrix
+    p_mat = (1-(1-beta_household)** model_constants.delta_t) * population_matrix
 
     state_lengths[state == STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == STATE.removed]     = np.inf ## inf b/c doesn't change from removed
@@ -51,7 +51,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         
         ## importing from outside the households
         if import_flag and sus_mask.any(): # if importation is defined and at least one person is in a susceptible state, see if imports happen
-            mask = (importation_probability * constants.delta_t * sus_mask > 0) # element wise selection of susceptible individuals
+            mask = (importation_probability * model_constants.delta_t * sus_mask > 0) # element wise selection of susceptible individuals
             roll = torch.zeros_like(importation_probability, dtype = torch.float)
 
             ## torch.rand can't work on device without existing cuda tensor
@@ -67,7 +67,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
             roll[mask] = random_tensor
 
             ## if random value is less than susceptability per delta_t, in susceptible individuals, importation occurs
-            importations = torch.where(roll < importation_probability * constants.delta_t * sus_mask, 1, 0)
+            importations = torch.where(roll < importation_probability * model_constants.delta_t * sus_mask, 1, 0)
             total_introductions += torch.sum(importations, axis=1) # I think this is per household
             
             if debug and (importations > 0).any():
@@ -158,7 +158,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
 
             state = new_state
 
-        t += constants.delta_t ## update time
+        t += model_constants.delta_t ## update time
         if duration is not None:
             run_flag = (t <= duration)
         else:

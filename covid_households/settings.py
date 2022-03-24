@@ -1,5 +1,5 @@
 # A file that contains settings for using the module
-from constants import updated_constants as constants
+from constants import updated_constants as model_constants
 from constants import STATE
 
 import torch
