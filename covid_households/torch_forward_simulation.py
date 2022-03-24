@@ -30,7 +30,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
     #print("device overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the device and should be fast ---
-    p_mat = (1-(1-beta_household)** model_constants.delta_t) * population_matrix
+    p_mat = beta_household * model_constants.delta_t * population_matrix
 
     state_lengths[state == STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == STATE.removed]     = np.inf ## inf b/c doesn't change from removed
