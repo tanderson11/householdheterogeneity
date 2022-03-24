@@ -12,6 +12,7 @@ from covid_households.settings import STATE
 import covid_households.state_lengths as state_length_module
 import covid_households.traits as traits
 from covid_households.torch_forward_simulation import torch_forward_time
+from covid_households.interventions import Intervention
 
 class StateLengthConfig(enum.Enum):
     gamma = 'gamma'
@@ -32,6 +33,7 @@ class Model(NamedTuple):
     initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
+    intervention: Intervention = None
 
     def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait()):
         assert household_beta is not None
@@ -110,7 +112,6 @@ class Population(NamedTuple):
     is_occupied: np.ndarray
     sus: np.ndarray
     inf: np.ndarray
-    connectivity_matrix: np.ndarray
 
     def seed_one_by_susceptibility(self):
         # Let's say a household has susceptibilites like 0.5, 1.0, 2.0
@@ -144,6 +145,34 @@ class Population(NamedTuple):
 
         initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
+    
+    def make_connectivity_matrix(self, adjmat):
+        """Makes a matrix of *relative* probabilities with ith row jth column corresponding to the relative probability that ith individual is infected by the jth individual
+
+        Args:
+            adjmat (np.ndarray): an array of True and False where ij = True means that i could be infected by j. (IE: they live in the same household, both exist, but they're not the same people)
+        
+        Returns:
+            [np.ndarray] -- connectivity matrix of relative probabilities infection i <-- j
+        """
+        # matrix of 
+        connectivity_matrix = (self.sus @ self.inf) * adjmat
+        return connectivity_matrix
+
+    @classmethod
+    def apply_intervention(cls, intervention_scheme, population, initial_state):
+        """Applies an invention to a population given its initial state and returns a new population (new set of traits).
+
+        Args:
+            population (Population): a realized population of individuals in households with susceptibilities (sus) and infectivies (inf).
+            intervention_scheme (Intervention): an intervention object that can `.apply` itself to traits given the initial state.
+            initial_state (np.ndarray): the initial state of the population at time t=0. Values correspond to `constants.STATE`
+
+        Returns:
+            Population: a population where the trait values of individual (might) have been modified by an intervention.
+        """
+        sus, inf = intervention_scheme.apply(population.sus, population.inf, initial_state)
+        return cls(population.is_occupied, sus, inf)
 
 from covid_households.utilities import ModelInputs
 from typing import OrderedDict
@@ -354,11 +383,9 @@ class PopulationStructure:
         sus = np.expand_dims(self.susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
         inf = np.transpose(np.expand_dims(self.infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
 
-        connectivity_matrix = (sus @ inf) * self._adjmat
+        return Population(self.is_occupied, sus, inf)
 
-        return Population(self.is_occupied, sus, inf, connectivity_matrix)
-
-    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, secondary_infections=True):
+    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, secondary_infections=True, intervention=None):
         ###################
         # Make population #
         ###################
@@ -370,6 +397,8 @@ class PopulationStructure:
         ################################
 
         initial_state = pop.make_initial_state(initial_seeding)
+        if intervention is not None:
+            pop = pop.apply_intervention(intervention, initial_state)
 
         if importation is None:
             importation_probability = 0. * pop.sus
@@ -393,7 +422,7 @@ class PopulationStructure:
         # Simulate #
         ############
 
-        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.connectivity_matrix, importation_probability, secondary_infections=secondary_infections)
+        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.make_connectivity_matrix(self._adjmat), importation_probability, secondary_infections=secondary_infections)
 
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
