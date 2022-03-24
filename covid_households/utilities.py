@@ -1,7 +1,7 @@
 import numpy as np
-from settings import model_constants
-from settings import STATE
-import traits
+from covid_households.settings import model_constants
+from covid_households.settings import STATE
+import covid_households.traits as traits
 import abc
 
 ### Initial infection seeding utility functions
@@ -85,7 +85,7 @@ def lognormal_p80_solve(p80):
 def lognormal_s80_solve(s80):
     return lognormal_p80_solve(s80)
 
-from state_lengths import lognormal_DISTS
+from covid_households.state_lengths import lognormal_DISTS
 def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     infectious_period_distribution = lognormal_DISTS[STATE.infectious]
     mu_t, sigma_t = infectious_period_distribution.mu, infectious_period_distribution.sigma

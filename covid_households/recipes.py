@@ -145,7 +145,7 @@ class Population(NamedTuple):
         initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
 
-from utilities import ModelInputs
+from covid_households.utilities import ModelInputs
 from typing import OrderedDict
 class SimulationRegion(NamedTuple):
     axes_by_name: OrderedDict
