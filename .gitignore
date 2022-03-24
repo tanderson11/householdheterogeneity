@@ -14,9 +14,6 @@ git_token.py
 # custom built packages
 *.whl
 
-# ipynb files (because we'll use the colab git interface)
-*.ipynb
-
 # .hdf data files saved by pandas
 *.hdf
 
@@ -28,6 +25,7 @@ slides/
 new_parameters/
 batched_figs/
 test/
+personal_notebooks/
 
 # logs
 *.log
