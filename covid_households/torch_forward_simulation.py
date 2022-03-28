@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-from covid_households.settings import device
-from covid_households.settings import model_constants
-from covid_households.settings import STATE
+from settings import device
+from settings import model_constants
+from settings import STATE
 
 def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
     debug = False  

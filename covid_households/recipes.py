@@ -7,12 +7,12 @@ import pyarrow as pa
 import os
 import json
 
-from covid_households.settings import model_constants
-from covid_households.settings import STATE
-import covid_households.state_lengths as state_length_module
-import covid_households.traits as traits
-from covid_households.torch_forward_simulation import torch_forward_time
-from covid_households.interventions import Intervention
+from settings import model_constants
+from settings import STATE
+import state_lengths as state_length_module
+import traits as traits
+from torch_forward_simulation import torch_forward_time
+from interventions import Intervention
 
 class StateLengthConfig(enum.Enum):
     gamma = 'gamma'
@@ -35,7 +35,7 @@ class Model(NamedTuple):
     secondary_infections: bool = True # for debugging / testing
     intervention: Intervention = None
 
-    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait()):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False):
         assert household_beta is not None
         #import pdb; pdb.set_trace()
         if population is None:
@@ -45,6 +45,8 @@ class Model(NamedTuple):
 
         df = population.simulate_population(household_beta, *self)
 
+        # restore a notion of 'trials'
+        # (we flattened the households into one large population for efficiency, now add the labels back to restructure)
         dfs = []
         grouped = df.groupby("size")
         for size, group in grouped:
@@ -53,7 +55,12 @@ class Model(NamedTuple):
                 trialnums = [t for t in range(trials) for i in range(count)]
                 group['trial'] = trialnums
             dfs.append(group)
-        return pd.concat(dfs)
+
+        df = pd.concat(dfs)
+        if as_counts:
+            df = pd.DataFrame(df.groupby(['size','infections']).size())
+            df.rename(columns={0:'count'}, inplace=True)
+        return df
 
     def run_grid(self, sizes, region, progress_path=None):
         axis_data = list(region.axes_by_name.items())
@@ -81,9 +88,7 @@ class Model(NamedTuple):
                     inf_dist = defualt_parameters['inf_dist']
                     beta = defualt_parameters['household_beta']
 
-                    point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist)
-                    point_results = pd.DataFrame(point_results.groupby(['size','infections']).size())
-                    point_results.name = 'count'
+                    point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
 
                     trait_parameter_name, trait_parameter_value = sus_dist.as_column()
                     point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
@@ -174,7 +179,7 @@ class Population(NamedTuple):
         sus, inf = intervention_scheme.apply(population.sus, population.inf, initial_state)
         return cls(population.is_occupied, sus, inf)
 
-from covid_households.utilities import ModelInputs
+from utilities import ModelInputs
 from typing import OrderedDict
 class SimulationRegion(NamedTuple):
     axes_by_name: OrderedDict
