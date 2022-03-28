@@ -1,32 +1,26 @@
 # Initialization
-import importlib
 from typing import NamedTuple
 
 from numpy.lib import percentile
 from pandas.tseries import offsets
-import population
 import likelihood
 import utilities
 import pandas as pd
 import numpy as np
 import functools
-import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import traits
 import seaborn as sns
 import operator
-import os
-import json
-import itertools
-import pyarrow as pa
-import pyarrow.parquet as pq
-import matplotlib.ticker as ticker
+
 
 import constants
 import recipes
 
 EMPIRICAL_TRIAL_ID = -1
+
+pretty_names = {'sus_mass': 'sus mass', 'inf_mass': 'inf mass', 'hsar': 'hsar'}
 
 class SelectedPoint:
     def __init__(self, parameter_coordinates, color, is_baseline=False):
@@ -85,7 +79,7 @@ class InteractiveFigure:
         self.unspoken_parameters = unspoken_parameters
 
         if self.is_empirical:
-            self.logl_df = likelihood.logl_from_data(None, full_sample_df, keys, frequency_df=self.frequency_df)
+            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
                         
@@ -105,10 +99,12 @@ class InteractiveFigure:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
             print("SAMPLE_DF:\n", self.sample_df)
+            import pdb; pdb.set_trace()
+
             if self.full_sample_df is None:
-                self.logl_df = likelihood.logl_from_data(None, self.sample_df, keys, frequency_df=self.frequency_df)
+                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'])
             else:
-                self.logl_df = likelihood.logl_from_data(None, self.full_sample_df, keys, frequency_df=self.frequency_df)
+                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'])
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
@@ -152,18 +148,23 @@ class InteractiveFigure:
             else: assert False
 
             if key_type == 'mass':
-                variance = constants.mass_to_variance[v]
-                trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=variance)
+                raise NotImplementedError
+                #variance = constants.mass_to_variance[v]
+                variance = utilities.lognormal_p80_solve(v).x[0]
+                trait_dict[key_prefix] = traits.LognormalTrait.from_natural_mean_variance(mean=1., variance=variance)
             else:
-                trait_dict[key_prefix] = traits.GammaTrait(mean=1., variance=v)
+                trait_dict[key_prefix] = traits.LognormalTrait.from_natural_mean_variance(mean=1., variance=v)
 
         if beta is None: # ie: hsar was provided
-            beta = utilities.implicit_solve_for_beta(hsar, trait_dict['sus'], trait_dict['inf'])
+            beta = utilities.beta_from_sar_and_lognormal_traits(hsar, trait_dict['sus'], trait_dict['inf'])
             print(beta)
 
-        df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'])
+        df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'], as_counts=True)
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
+        
+        relabeled = {x:f'sample {x}' for x in keys}
+        df.rename(columns=relabeled, inplace=True)
 
         class SimulationResult(NamedTuple):
             df: pd.DataFrame
@@ -178,17 +179,16 @@ class InteractiveFigure:
             sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
             baseline_df = self.simulate_at_point(keys, sizes).df
-            return baseline_df
-
-        baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
+        else:
+            baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
 
         try: # for legacy dfs that don't always include a trial column
-            print(baseline_df["trialnum"])
+            print(baseline_df["trial"])
         except KeyError:
-            baseline_df["trialnum"] = 0
+            baseline_df["trial"] = 0
 
         if one_trial:
-            baseline_df = baseline_df[baseline_df["trialnum"] == 0] # for concreteness, use only trial 1
+            baseline_df = baseline_df[baseline_df["trial"] == 0] # for concreteness, use only trial 1
 
         return baseline_df
 
@@ -268,7 +268,7 @@ class InteractiveFigure:
         #import pdb; pdb.set_trace()
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
         if self.full_sample_df is None:
-            self.logl_df = likelihood.logl_from_data(None, self.sample_df, [self.key1, self.key2], frequency_df=self.frequency_df)
+            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2])
         print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
@@ -301,8 +301,8 @@ def subfigure_factory(plot_type, ax, interactive):
 
     if plot_type == 'logl heatmap':
         # new code with the full logl df
-        trialnumber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+        trialber = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber] # pulling out the coordinates of the baseline and the trialber
 
         print("LOGL DF\n", logl_df)
 
@@ -323,34 +323,35 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
     
     elif plot_type == 'confidence heatmap':
-        trialnumber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
+        trialber = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
         title = ""
         subfigure = InOrOutConfidenceIntervalHeatmap(ax, interactive, logl_df, title)
 
     elif plot_type == 'many confidence heatmap':
-        trialnumber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialnumber]
+        trialber = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
         title = "Membership in cumulative probability density contours"
         subfigure = ManyMasksConfidenceHeatmap(ax, interactive, logl_df, title)
 
     elif plot_type == 'logl contour plot':
-        trialnumber=0
+        trialber=0
         # unstacked for Z
         logl_df = interactive.logl_df.loc[
             interactive.baseline_point.parameter_coordinates[interactive.key1],
             interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+            trialber] # pulling out the coordinates of the baseline and the trialber
         print(logl_df)
         subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'probability contour plot':
-        trialnumber=0
+        trialber=0
         # unstacked for Z
+        import pdb; pdb.set_trace()
         logl_df = interactive.logl_df.loc[
             interactive.baseline_point.parameter_coordinates[interactive.key1],
             interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trialnumber] # pulling out the coordinates of the baseline and the trialnumber
+            trialber] # pulling out the coordinates of the baseline and the trialber
         print(logl_df)
         subfigure = ProbabilityContourPlot(ax, interactive, logl_df, "", color_label="probability")
 
@@ -424,11 +425,10 @@ class TraitHistograms(SelectionDependentSubfigure):
             #trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
             parameter_value = p.parameter_coordinates[graph_key]
             if graph_key == 'sus_var' or graph_key == 'inf_var':
-                trait=traits.GammaTrait(mean=1.0, variance=parameter_value)
+                trait=traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=parameter_value)
             elif graph_key == 'sus_mass' or graph_key == 'inf_mass':
-                variance = constants.mass_to_variance[parameter_value]
-                #variance = utilities.find_gamma_target_variance(80, parameter_value)
-                trait=traits.GammaTrait(mean=1.0, variance=variance)
+                variance = utilities.lognormal_p80_solve(parameter_value).x[0]
+                trait=traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=variance)
             color = p.color
             #import pdb; pdb.set_trace()
             if p.is_baseline:
@@ -549,7 +549,7 @@ class OnAxesSubfigure(Subfigure):
         x_mins = []
         y_mins = []
         colors = []
-        for trial,_logl_df in self.interactive.logl_df.loc[key1_value, key2_value].groupby("trialnum"): # go to the baseline coordinates, then look at all the trials
+        for trial,_logl_df in self.interactive.logl_df.loc[key1_value, key2_value].groupby("trial"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
@@ -716,8 +716,8 @@ class ContourPlot(OnMatplotlibAxes):
             self.scatter_point_estimates()
 
         plt.title(self.title)
-        plt.xlabel(constants.pretty_names[self.interactive.key2])
-        plt.ylabel(constants.pretty_names[self.interactive.key1])
+        plt.xlabel(pretty_names[self.interactive.key2])
+        plt.ylabel(pretty_names[self.interactive.key1])
 
         plt.sca(self.ax)
         self.draw_patches()

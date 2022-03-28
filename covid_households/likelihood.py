@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trialnum"], household_keys=["size", "infections"]):
+def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trial"], household_keys=["size", "infections"]):
     #counts = empirical.groupby(keys + sample_only_keys + household_keys)["model"].count()
     counts = empirical.groupby(parameter_keys + sample_only_keys + household_keys).size()
     #import pdb; pdb.set_trace()
@@ -45,7 +45,7 @@ def compute_frequencies(comparison, grouping):
         frequencies = frequencies[~duplicated]
     return frequencies
 
-def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["trialnum"], household_keys=["size", "infections"], frequency_df=None):
+def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["trial"], household_keys=["size", "infections"], frequency_df=None):
     if frequency_df is not None:
         frequencies = frequency_df
     else:
@@ -54,7 +54,7 @@ def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["tria
     logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
     return logl
 
-def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trialnum"], household_keys=["size", "infections"]):
+def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trial"], household_keys=["size", "infections"]):
     log_freqs = np.log(frequencies)
     log_freqs.name = "log freq"
 
