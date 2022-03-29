@@ -20,7 +20,7 @@ import recipes
 
 EMPIRICAL_TRIAL_ID = -1
 
-pretty_names = {'sus_mass': 'sus mass', 'inf_mass': 'inf mass', 'hsar': 'hsar'}
+pretty_names = {'sus_mass': 'sus mass', 'inf_mass': 'inf mass', 'hsar': 'hsar', 'SAR': 'SAR', 's80': 's80', 'p80': 'p80'}
 
 class SelectedPoint:
     def __init__(self, parameter_coordinates, color, is_baseline=False):
@@ -69,7 +69,7 @@ class InteractiveFigure:
             assert frequency_df is not None
             print(frequency_df)
             self.frequency_df = frequency_df
-        
+
         self.reset_freqs = self.frequency_df.reset_index()
         self.keys = keys
         self.key1, self.key2 = keys
@@ -82,7 +82,7 @@ class InteractiveFigure:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
-                        
+
             baseline_1, baseline_2 = find_most_likely(self.logl_df, keys)
             # add labels to the empirical df so its position can be identified
             full_sample_df[self.key1] = baseline_1
@@ -130,39 +130,20 @@ class InteractiveFigure:
     def simulate_at_point(keys, sizes, model=recipes.Model()):
         # keys = dictionary {key: value}
         beta = None
-        try:
-            hsar = keys['hsar']
-        except KeyError:
-            beta = keys['beta']
+        hsar = keys.get('hsar', None)
+        hsar = hsar if hsar is not None else keys.get('SAR', None)
+        if hsar is None: beta = keys['beta']
+
         trait_dict = {}
 
-        #import pdb; pdb.set_trace()
-        for k,v in keys.items():
-            # want just the traits
-            if k in ['hsar', 'beta']:
-                continue
-            key_prefix = k[:3]
-            assert key_prefix in ['sus', 'inf'], k
-            if 'mass'  in k: key_type = 'mass'
-            elif 'var' in k: key_type = 'variance'
-            else: assert False
+        parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
+        params = parameterization(**keys)
 
-            if key_type == 'mass':
-                raise NotImplementedError
-                #variance = constants.mass_to_variance[v]
-                variance = utilities.lognormal_p80_solve(v).x[0]
-                trait_dict[key_prefix] = traits.LognormalTrait.from_natural_mean_variance(mean=1., variance=variance)
-            else:
-                trait_dict[key_prefix] = traits.LognormalTrait.from_natural_mean_variance(mean=1., variance=v)
-
-        if beta is None: # ie: hsar was provided
-            beta = utilities.beta_from_sar_and_lognormal_traits(hsar, trait_dict['sus'], trait_dict['inf'])
-            print(beta)
-
-        df = model.run_trials(beta, sizes=sizes, sus=trait_dict['sus'], inf=trait_dict['inf'], as_counts=True)
+        import pdb; pdb.set_trace()
+        df = model.run_trials(**params.to_normal_inputs(), sizes=sizes, as_counts=True)
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
-        
+
         relabeled = {x:f'sample {x}' for x in keys}
         df.rename(columns=relabeled, inplace=True)
 
@@ -211,8 +192,8 @@ class InteractiveFigure:
             self.available_colors.append(color)
             self.draw_after_toggle()
 
-        self.fig.canvas.draw()        
-    
+        self.fig.canvas.draw()
+
     def draw_after_toggle(self):
         for ax in self.ax.ravel():
             sf = ax.associated_subfigure
@@ -227,15 +208,14 @@ class InteractiveFigure:
         except IndexError:
             print("Error. Tried to select point but no colors are available.")
             return False
-        
+
         point = SelectedPoint(parameter_coordinates, color, **kwargs)
         self.selected_points.append(point)
 
         self.draw_after_toggle()
 
-        
         return point
-    
+
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
         #figsize = (self.subplots.shape[0] * 3.5, self.subplots.shape[1] * 7.5)
@@ -260,7 +240,7 @@ class InteractiveFigure:
             slide_name += f'-{k[0]}{v}'
         plt.savefig(f'mass_produced/{slide_name}.png', dpi=400),# bbox_inches='tight')
         plt.show()
-        
+
 
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
@@ -310,7 +290,7 @@ def subfigure_factory(plot_type, ax, interactive):
             #import pdb; pdb.set_trace()
             sizes=interactive.sample_df.groupby("size")["model"].count().to_dict() # idiom for getting the counts at different sizes
             title = ""
-            #title = "Log likelihood of observing empirical dataset\nsizes={}\n fixed values={}".format(sizes, interactive.fixed_values) 
+            #title = "Log likelihood of observing empirical dataset\nsizes={}\n fixed values={}".format(sizes, interactive.fixed_values)
         else:
             #if interactive.sample_model_dict["importation_rate"] == 0:
             if True:
@@ -319,9 +299,9 @@ def subfigure_factory(plot_type, ax, interactive):
             else:
                 title = ""
                 #title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.sample_model_dict["seeding"]["name"], interactive.sample_model_dict["importation_rate"], interactive.sample_model_dict["duration"])
-                                                                                                
+
         subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
-    
+
     elif plot_type == 'confidence heatmap':
         trialber = 0
         logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
@@ -404,7 +384,7 @@ class TraitHistograms(SelectionDependentSubfigure):
 
     def draw(self):
         SelectionDependentSubfigure.draw(self)
-        possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass"]
+        possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass", "s80", "p80"]
         if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
             print("WARNING: both keys are traits. Graphing only key1")
         print(self.interactive.keys)
@@ -426,7 +406,7 @@ class TraitHistograms(SelectionDependentSubfigure):
             parameter_value = p.parameter_coordinates[graph_key]
             if graph_key == 'sus_var' or graph_key == 'inf_var':
                 trait=traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=parameter_value)
-            elif graph_key == 'sus_mass' or graph_key == 'inf_mass':
+            elif graph_key == 's80' or graph_key == 'p80':
                 variance = utilities.lognormal_p80_solve(parameter_value).x[0]
                 trait=traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=variance)
             color = p.color
@@ -464,7 +444,7 @@ class InfectionHistogram(SelectionDependentSubfigure):
         restrictions = []
         #import pdb; pdb.set_trace()
         for p in self.interactive.selected_points:
-            
+
             labels, restriction = self.frequency_df_at_point(p, drop_level=self.drop_level)
             if len(labels) > 1:
                 labels = tuple(labels)
@@ -506,7 +486,7 @@ class InfectionHistogram(SelectionDependentSubfigure):
         #for labels, average in average_dict.items():
         #    offset = next(offsets)
         #    ax.text(0.25, 0.37-offset, f"average={average:.2f}", size=12, color=color_dict[labels])
-        
+
 class OnAxesSubfigure(Subfigure):
     '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
     def __init__(self, ax, interactive):
@@ -514,7 +494,7 @@ class OnAxesSubfigure(Subfigure):
 
         self.patches = {}
         self.has_patches = True
-    
+
     def click(self, event_x, event_y, click_type):
         parameter_coordinates = self.click_to_coordinates(event_x, event_y)
 
@@ -569,7 +549,7 @@ class OnAxesSubfigure(Subfigure):
                 colors.append("red")
                 #colors.append("orange")
 
-        self.ax.scatter(x_mins, y_mins, s=4, c=colors, **kwargs) 
+        self.ax.scatter(x_mins, y_mins, s=4, c=colors, **kwargs)
 
     def remove_patch(self, point):
         x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
@@ -584,7 +564,7 @@ class OnMatplotlibAxes(OnAxesSubfigure):
 
         self.x_grid_values = self.df.columns.to_numpy()
         self.y_grid_values = self.df.index.to_numpy()
-        
+
         print("XGRID:", self.x_grid_values)
         print("YGRID:", self.y_grid_values)
 
@@ -612,7 +592,7 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         #print(self.y_grid_values > y, y_where_lower, y-y_where_lower)
         y_idx = (y-y_where_lower).argmin()
 
-        
+
         parameter_coordinates = {self.interactive.key1:self.y_grid_values[y_idx], self.interactive.key2:self.x_grid_values[x_idx]} # these are inverted because key1 is used in the rows
         #print(parameter_coordinates)
         #import pdb; pdb.set_trace()
@@ -690,7 +670,7 @@ class ContourPlot(OnMatplotlibAxes):
         #print(self.Z)
 
         OnMatplotlibAxes.__init__(self, ax, interactive)
-        
+
         # more aliases
 
         self.title = title
@@ -775,13 +755,13 @@ class ConfidenceHeatmap(Heatmap):
     def draw(self):
         Subfigure.draw(self)
         cmap = sns.color_palette("Greens", self.n_masks)
-        #cmap.set_bad("black") 
+        #cmap.set_bad("black")
         in_no_group_mask = np.where(self.df==0., True, False)
         ax = sns.heatmap(self.df, mask=in_no_group_mask, ax=self.ax, cbar=True, cmap=cmap) # need .unstack() here if we don't do it by default
         ax.invert_yaxis()
         #ax.set_facecolor("wheat")
         colorbar = ax.collections[0].colorbar
-        r = colorbar.vmax - colorbar.vmin 
+        r = colorbar.vmax - colorbar.vmin
         colorbar.set_ticks([colorbar.vmin + r / self.n_masks * (0.5 + i) for i in range(self.n_masks)])
         colorbar.set_ticklabels(list(self.labels))
         #colorbar.ax.invert_yaxis()

@@ -58,7 +58,7 @@ def objective_function_crafter(p80):
     Returns a function that accepts a variance
     and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
     '''
-    assert p80 <= 0.78, "fitting is not well behaved for p80 > 0.78"
+    assert p80 <= 0.78, "fitting is not well behaved for p80 and/or s80 > 0.78"
     def objective_function(variance):
         sigma = np.sqrt(np.log(variance + 1))
         mu = -1/2 * np.log(variance + 1)
@@ -125,8 +125,8 @@ class ModelInputs(abc.ABC):
 
         {
             'household_beta': float,
-            'sus_dist': Trait,
-            'inf_dist': Trait,
+            'sus': Trait,
+            'inf': Trait,
         }
         '''
         pass
@@ -140,11 +140,12 @@ class Lognormal_Variance_Variance_Beta_Inputs(ModelInputs):
     def to_normal_inputs(self):
         return {
             'household_beta': self.household_beta,
-            'sus_dist': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.sus_varaince),
-            'inf_dist': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.inf_variance),
+            'sus': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.sus_varaince),
+            'inf': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.inf_variance),
         }
 
 class S80_P80_SAR_Inputs(ModelInputs):
+    key_names = ['s80', 'p80', 'SAR']
     def __init__(self, s80, p80, SAR) -> None:
         self.s80 = s80
         self.p80 = p80
@@ -171,8 +172,8 @@ class S80_P80_SAR_Inputs(ModelInputs):
 
         return {
             'household_beta': beta,
-            'sus_dist': sus_dist,
-            'inf_dist': inf_dist,
+            'sus': sus_dist,
+            'inf': inf_dist,
         }
 
     def as_dict(self):
@@ -185,3 +186,6 @@ class S80_P80_SAR_Inputs(ModelInputs):
     def __repr__(self) -> str:
         rep = "ModelInputs"
         return rep + f"({self.as_dict()}\n{self.to_normal_inputs()})"
+
+parameterization_by_keys = {}
+parameterization_by_keys[frozenset(S80_P80_SAR_Inputs.key_names)] = S80_P80_SAR_Inputs
