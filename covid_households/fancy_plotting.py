@@ -36,6 +36,7 @@ def find_most_likely(logl_df, keys):
     width = logl_df.unstack().columns.size # verify that this still works
 
     idx = logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value
+    #import pdb; pdb.set_trace()
     x_min = idx % width
     y_min = idx // width
     print(x_min, y_min)
@@ -69,6 +70,14 @@ class InteractiveFigure:
             assert frequency_df is not None
             print(frequency_df)
             self.frequency_df = frequency_df
+            # if we want to fix a parameter outside of our 2D slice,
+            # we need to ensure its value is constant in the frequency_df
+            if unspoken_parameters is not None:
+                for k,v in unspoken_parameters.items():
+                    try:
+                        self.frequency_df = self.frequency_df[self.frequency_df.index.get_level_values(k) == v]
+                    except KeyError:
+                        pass
 
         self.reset_freqs = self.frequency_df.reset_index()
         self.keys = keys
@@ -99,7 +108,6 @@ class InteractiveFigure:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
             self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
             print("SAMPLE_DF:\n", self.sample_df)
-            import pdb; pdb.set_trace()
 
             if self.full_sample_df is None:
                 self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'])
@@ -139,7 +147,6 @@ class InteractiveFigure:
         parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
         params = parameterization(**keys)
 
-        import pdb; pdb.set_trace()
         df = model.run_trials(**params.to_normal_inputs(), sizes=sizes, as_counts=True)
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
@@ -327,7 +334,6 @@ def subfigure_factory(plot_type, ax, interactive):
     elif plot_type == 'probability contour plot':
         trialber=0
         # unstacked for Z
-        import pdb; pdb.set_trace()
         logl_df = interactive.logl_df.loc[
             interactive.baseline_point.parameter_coordinates[interactive.key1],
             interactive.baseline_point.parameter_coordinates[interactive.key2],
@@ -533,7 +539,7 @@ class OnAxesSubfigure(Subfigure):
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
-
+            import pdb; pdb.set_trace()
             x_min, y_min = self.index_to_xy(x_min_index, y_min_index)
 
             x_min = x_min + self.center_offset# + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap

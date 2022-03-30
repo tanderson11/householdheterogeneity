@@ -65,7 +65,6 @@ def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample
     # we make a table of the log frequency values, and then we just have to 'line it up' with the counts and do arithmetic, most of the work is in lining it up
     merged = pd.merge(counts, log_freqs, how='left', on=household_keys+["dummy"])
     #print(merged)
-    #import pdb; pdb.set_trace()
     indexed_merge = merged.set_index([sample_prefix + key for key in parameter_keys] + sample_only_keys + parameter_keys + household_keys)
     indexed_merge["logl"] = indexed_merge["log freq"] * indexed_merge["count"]
 
