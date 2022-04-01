@@ -1,0 +1,1 @@
+[{"delta_t": 0.1, "infectious_period_duration_mean": 6.0, "infectious_period_duration_std": 2.5, "latent_period_duration_mean": 3.5, "latent_period_duration_std": 2.5}, ["lognormal", "seed one by susceptibility", null, true, null], {"5": 5000}, ["s80", "p80", "SAR"]]

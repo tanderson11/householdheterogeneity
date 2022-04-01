@@ -82,11 +82,11 @@ class Model(NamedTuple):
                     params[key2] = v2
                     params[key3] = v3
 
-                    defualt_parameters = region.parameter_class(**params).to_normal_inputs()
+                    default_parameters = region.parameter_class(**params).to_normal_inputs()
 
-                    sus_dist = defualt_parameters['sus_dist']
-                    inf_dist = defualt_parameters['inf_dist']
-                    beta = defualt_parameters['household_beta']
+                    sus_dist = default_parameters['sus']
+                    inf_dist = default_parameters['inf']
+                    beta = default_parameters['household_beta']
 
                     point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
 
