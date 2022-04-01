@@ -42,3 +42,13 @@ if test == 'test2':
         unspoken_parameters={'s80':0.80},
         simulation_sample_size=150,
         figsize=(10, 4.5))
+
+if test == 'test3':
+    results = recipes.Results.load("/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8/full_results/")
+    frequency_df = results.df
+    frequency_df = frequency_df[frequency_df.index.get_level_values('size') == 5]['frequency']
+    frequency_df = frequency_df[frequency_df.index.get_level_values('SAR') <= 0.39]
+    plotting_keys = ["p80", "SAR"]
+
+    # something like ...
+    fancy_plotting.InfectionHistogram(frequency_df, point)

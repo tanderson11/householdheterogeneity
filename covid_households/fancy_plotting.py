@@ -262,7 +262,7 @@ class InteractiveFigure:
 
     def draw(self):
         for ax in self.ax.ravel():
-            ax.associated_subfigure.draw() # draws each subfigure
+            ax.associated_subfigure.draw(self) # draws each subfigure
 
     def on_click(self, event):
         print(event.inaxes.associated_subfigure)
@@ -271,7 +271,7 @@ class InteractiveFigure:
         else:
             click_type = "select"
 
-        event.inaxes.associated_subfigure.click(event.xdata, event.ydata, click_type) # pass clicks to the subfigure objects
+        event.inaxes.associated_subfigure.click(self, event.xdata, event.ydata, click_type) # pass clicks to the subfigure objects
 
     def on_key(self, event):
         if event.key == " ":
@@ -280,7 +280,7 @@ class InteractiveFigure:
 def subfigure_factory(plot_type, ax, interactive):
     possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot', 'probability contour plot']
     assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
-
+    keys = (interactive.key1, interactive.key2)
     if plot_type == 'logl heatmap':
         # new code with the full logl df
         trialber = 0
@@ -302,19 +302,19 @@ def subfigure_factory(plot_type, ax, interactive):
                 title = ""
                 #title = "Log likelihood of observing {0} baseline (size={1}) versus {2} and {3}\n seeding={4}, daily importation={4:.4f}, and duration={5}".format(interactive.baseline_color, sum(interactive.baseline_sizes.values()), interactive.key1, interactive.key2, interactive.sample_model_dict["seeding"]["name"], interactive.sample_model_dict["importation_rate"], interactive.sample_model_dict["duration"])
 
-        subfigure = Heatmap(ax, interactive, logl_df, title, scatter_stars=True)
+        subfigure = Heatmap(ax, logl_df, title, scatter_stars=True)
 
     elif plot_type == 'confidence heatmap':
         trialber = 0
         logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
         title = ""
-        subfigure = InOrOutConfidenceIntervalHeatmap(ax, interactive, logl_df, title)
+        subfigure = InOrOutConfidenceIntervalHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'many confidence heatmap':
         trialber = 0
         logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
         title = "Membership in cumulative probability density contours"
-        subfigure = ManyMasksConfidenceHeatmap(ax, interactive, logl_df, title)
+        subfigure = ManyMasksConfidenceHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'logl contour plot':
         trialber=0
@@ -324,7 +324,7 @@ def subfigure_factory(plot_type, ax, interactive):
             interactive.baseline_point.parameter_coordinates[interactive.key2],
             trialber] # pulling out the coordinates of the baseline and the trialber
         print(logl_df)
-        subfigure = ContourPlot(ax, interactive, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
+        subfigure = ContourPlot(ax, keys, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'probability contour plot':
         trialber=0
@@ -334,65 +334,64 @@ def subfigure_factory(plot_type, ax, interactive):
             interactive.baseline_point.parameter_coordinates[interactive.key2],
             trialber] # pulling out the coordinates of the baseline and the trialber
         print(logl_df)
-        subfigure = ProbabilityContourPlot(ax, interactive, logl_df, "", color_label="probability")
+        subfigure = ProbabilityContourPlot(ax, keys, logl_df, "", color_label="probability")
 
     elif plot_type == 'infection histograms':
-        subfigure = InfectionHistogram(ax, interactive)
+        subfigure = InfectionHistogram(ax)
 
     elif plot_type == 'trait histograms':
-        subfigure = TraitHistograms(ax, interactive)
+        subfigure = TraitHistograms(ax)
 
     return subfigure
 
 class Subfigure:
-    def __init__(self, ax, interactive, **kwargs):
+    def __init__(self, ax, keys, **kwargs):
         self.ax = ax
-        self.interactive = interactive
         self.has_patches = False
+        self.key1, self.key2 = keys
 
         self.kwargs = kwargs
 
-    def draw(self):
+    def draw(self, interactive):
         plt.sca(self.ax)
         plt.cla()
         print("clearing", type(self))
 
 class SelectionDependentSubfigure(Subfigure):
-    def frequency_df_at_point(self, point, drop_level=None):
-        labels = [point.parameter_coordinates[self.interactive.key1], point.parameter_coordinates[self.interactive.key2]] # ie we could use .values if the dict were sorted, TK
+    def frequency_df_at_point(self, interactive, point, drop_level=None):
+        labels = [point.parameter_coordinates[interactive.key1], point.parameter_coordinates[interactive.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
-            restriction = likelihood.frequencies_from_synthetic(self.interactive.sample_df, self.interactive.keys)
-            #restriction = self.interactive.sample_df #old
+            restriction = likelihood.frequencies_from_synthetic(interactive.sample_df, interactive.keys)
         else: # otherwise, we select only the comparison distributions at the relevant points
-            masks = [self.interactive.reset_freqs[self.interactive.key1] == labels[0], self.interactive.reset_freqs[self.interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
+            masks = [interactive.reset_freqs[interactive.key1] == labels[0], interactive.reset_freqs[interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
             mask = functools.reduce(operator.and_, masks)
-            mask.index = self.interactive.frequency_df.index
-            restriction = self.interactive.frequency_df[mask]
+            mask.index = interactive.frequency_df.index
+            restriction = interactive.frequency_df[mask]
         restriction.name = 'freq'
         if drop_level:
             #import pdb; pdb.set_trace()
             restriction.index = restriction.index.droplevel(drop_level)
-            if self.interactive.key1 == drop_level:
+            if interactive.key1 == drop_level:
                 labels = labels[1:]
-            if self.interactive.key2 == drop_level:
+            if interactive.key2 == drop_level:
                 labels = labels[:1]
             #pass
         return labels, restriction
 
 class TraitHistograms(SelectionDependentSubfigure):
-    def __init__(self, ax, interactive):
-        SelectionDependentSubfigure.__init__(self, ax, interactive)
+    def __init__(self, ax, keys, interactive):
+        SelectionDependentSubfigure.__init__(self, ax, keys, interactive)
 
-    def draw(self):
-        SelectionDependentSubfigure.draw(self)
+    def draw(self, interactive):
+        SelectionDependentSubfigure.draw(self, interactive)
         possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass", "s80", "p80"]
-        if self.interactive.key1 in possible_traits and self.interactive.key2 in possible_traits:
+        if interactive.key1 in possible_traits and interactive.key2 in possible_traits:
             print("WARNING: both keys are traits. Graphing only key1")
-        print(self.interactive.keys)
-        if self.interactive.key1 in possible_traits:
-            graph_key = self.interactive.key1
-        elif self.interactive.key2 in possible_traits:
-            graph_key = self.interactive.key2
+        print(interactive.keys)
+        if interactive.key1 in possible_traits:
+            graph_key = interactive.key1
+        elif interactive.key2 in possible_traits:
+            graph_key = interactive.key2
         else:
             return None
 
@@ -402,7 +401,7 @@ class TraitHistograms(SelectionDependentSubfigure):
         colors = []
         outputs = []
         labels = []
-        for p in self.interactive.selected_points:
+        for p in interactive.selected_points:
             #trait=traits.GammaTrait("{0}".format(graph_key), mean=1.0, variance=p.parameter_coordinates[graph_key])
             parameter_value = p.parameter_coordinates[graph_key]
             if graph_key == 'sus_var' or graph_key == 'inf_var':
@@ -420,7 +419,7 @@ class TraitHistograms(SelectionDependentSubfigure):
             shaped_array = np.full((samples,), True)
             output = np.array(trait(shaped_array))
             outputs.append(output)
-            labels.append(p.parameter_coordinates[self.interactive.key1])
+            labels.append(p.parameter_coordinates[interactive.key1])
             #ax = trait.plot(samples=10000, color=color, bins=bins, normed=1, histtype='bar')
 
         #ax = plt.hist(outputs, histtype='bar', bins=bins, color=colors, label=labels)
@@ -431,22 +430,22 @@ class TraitHistograms(SelectionDependentSubfigure):
         #plt.title("Gamma distributed {0}".format(graph_key))
 
 class InfectionHistogram(SelectionDependentSubfigure):
-    def __init__(self, ax, interactive, drop_level=None):
-        SelectionDependentSubfigure.__init__(self, ax, interactive)
+    def __init__(self, ax, keys, interactive, drop_level=None):
+        SelectionDependentSubfigure.__init__(self, ax, keys, interactive)
         self.drop_level = drop_level
         self.drop_level = 'hsar'
 
-    def draw(self):
-        SelectionDependentSubfigure.draw(self)
+    def draw(self, interactive):
+        SelectionDependentSubfigure.draw(self, interactive)
 
         color_dict = {}
         average_dict = {}
         represented_coordinates = set()
         restrictions = []
         #import pdb; pdb.set_trace()
-        for p in self.interactive.selected_points:
+        for p in interactive.selected_points:
 
-            labels, restriction = self.frequency_df_at_point(p, drop_level=self.drop_level)
+            labels, restriction = self.frequency_df_at_point(interactive, p, drop_level=self.drop_level)
             if len(labels) > 1:
                 labels = tuple(labels)
             else:
@@ -473,7 +472,7 @@ class InfectionHistogram(SelectionDependentSubfigure):
             restrictions.append(baseline_restriction)
 
         restricted_df = pd.concat(restrictions)
-        keys = [self.interactive.key1, self.interactive.key2]
+        keys = [interactive.key1, interactive.key2]
         if self.drop_level:
             try:
                 keys.remove(self.drop_level)
@@ -489,26 +488,27 @@ class InfectionHistogram(SelectionDependentSubfigure):
         #    ax.text(0.25, 0.37-offset, f"average={average:.2f}", size=12, color=color_dict[labels])
 
 class OnAxesSubfigure(Subfigure):
-    '''A class that exists to serve subclasses OnSeabornAxes and OnMatplotlibAxes, which can manage coordinates, plot patches, etc.'''
-    def __init__(self, ax, interactive):
-        Subfigure.__init__(self, ax, interactive)
-
-        self.patches = {}
+    '''A class that holds a figure and can manage coordinates, plot patches, and other aspects of interactive selection.
+    
+    Needs to be specialized to different frameworks via the subclasses OnMatplotlibAxes and OnSeabornAxes, which handle the different ways of converting coordinates to xy.'''
+    def __init__(self, ax, keys):
+        Subfigure.__init__(self, ax, keys)
         self.has_patches = True
+        self.patches = {}
 
-    def click(self, event_x, event_y, click_type):
+    def click(self, interactive, event_x, event_y, click_type):
         parameter_coordinates = self.click_to_coordinates(event_x, event_y)
 
         print(parameter_coordinates)
         if click_type == "select":
-            self.interactive.toggle(parameter_coordinates)
+            interactive.toggle(parameter_coordinates)
         elif click_type == "reset baseline":
-            self.interactive.reset_baseline(parameter_coordinates)
+            interactive.reset_baseline(parameter_coordinates)
 
-    def draw_patches(self):
-        for point in self.interactive.selected_points:
+    def draw_patches(self, interactive):
+        for point in interactive.selected_points:
             if True:
-            #if self.interactive.empirical == False or point.is_baseline == False: # draw the patch if it's a selection or if it's the baseline but not empirical
+            #if interactive.empirical == False or point.is_baseline == False: # draw the patch if it's a selection or if it's the baseline but not empirical
                 x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
 
                 try:
@@ -517,20 +517,20 @@ class OnAxesSubfigure(Subfigure):
                     patch = self.draw_patch(point, x,y)
                     self.patches[(x,y)] = patch
 
-    def scatter_point_estimates(self, **kwargs):
+    def scatter_point_estimates(self, interactive, **kwargs):
         print("IN SCATTER")
         print(self.stacked_df)
 
         width = self.stacked_df.unstack().columns.size
 
-        key1_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key1]
-        key2_value = self.interactive.baseline_point.parameter_coordinates[self.interactive.key2]
+        key1_value = interactive.baseline_point.parameter_coordinates[interactive.key1]
+        key2_value = interactive.baseline_point.parameter_coordinates[interactive.key2]
         #scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
 
         x_mins = []
         y_mins = []
         colors = []
-        for trial,_logl_df in self.interactive.logl_df.loc[key1_value, key2_value].groupby("trial"): # go to the baseline coordinates, then look at all the trials
+        for trial,_logl_df in interactive.logl_df.loc[key1_value, key2_value].groupby("trial"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
@@ -559,8 +559,8 @@ class OnAxesSubfigure(Subfigure):
         return point.color
 
 class OnMatplotlibAxes(OnAxesSubfigure):
-    def __init__(self, ax, interactive):
-        OnAxesSubfigure.__init__(self, ax, interactive)
+    def __init__(self, ax, keys):
+        OnAxesSubfigure.__init__(self, ax, keys)
         self.center_offset = 0.0
 
         self.x_grid_values = self.df.columns.to_numpy()
@@ -594,14 +594,14 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         y_idx = (y-y_where_lower).argmin()
 
 
-        parameter_coordinates = {self.interactive.key1:self.y_grid_values[y_idx], self.interactive.key2:self.x_grid_values[x_idx]} # these are inverted because key1 is used in the rows
+        parameter_coordinates = {self.key1:self.y_grid_values[y_idx], self.key2:self.x_grid_values[x_idx]}
         #print(parameter_coordinates)
         #import pdb; pdb.set_trace()
         return parameter_coordinates
 
     def parameter_coordinates_to_xy(self, parameter_coordinates):
         # this is easy because the xy on the matplotlib axes just are parameter coordinates
-        x,y = parameter_coordinates[self.interactive.key2], parameter_coordinates[self.interactive.key1] # key order inverted as always
+        x,y = parameter_coordinates[self.key2], parameter_coordinates[self.key1] # key order inverted as always
         #import pdb; pdb.set_trace()
         return x,y
 
@@ -618,11 +618,11 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         return patch
 
 class OnSeabornAxes(OnAxesSubfigure):
-    def __init__(self, ax, interactive):
+    def __init__(self, ax, keys):
         self.center_offset = 0.5
         self.patches_x_scale = 1.
         self.patches_y_scale = 1.
-        OnAxesSubfigure.__init__(self, ax, interactive)
+        OnAxesSubfigure.__init__(self, ax, keys)
 
     def click_to_coordinates(self, event_x, event_y):
         x = np.floor(event_x)
@@ -640,14 +640,14 @@ class OnSeabornAxes(OnAxesSubfigure):
         key1_value = self.df.index.to_list()[int(y)]
         key2_value = self.df.columns.to_list()[int(x)] #columns associated with key2, index with key1
 
-        parameter_coordinates = {self.interactive.key1:key1_value, self.interactive.key2:key2_value}
+        parameter_coordinates = {self.key1:key1_value, self.key2:key2_value}
 
         return parameter_coordinates
 
     def parameter_coordinates_to_xy(self, parameter_coordinates):
         # parameter coordinates is like {key1_name: key1_value ...}
-        x = float(self.df.columns.to_list().index(parameter_coordinates[self.interactive.key2])) #columns associated with key2, index with key1
-        y = float(self.df.index.to_list().index(parameter_coordinates[self.interactive.key1]))
+        x = float(self.df.columns.to_list().index(parameter_coordinates[self.key2])) #columns associated with key2, index with key1
+        y = float(self.df.index.to_list().index(parameter_coordinates[self.key1]))
 
         return x,y
 
@@ -662,7 +662,7 @@ class OnSeabornAxes(OnAxesSubfigure):
         return patch
 
 class ContourPlot(OnMatplotlibAxes):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
+    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
         self.df = df.unstack()
         self.stacked_df = df
 
@@ -670,7 +670,7 @@ class ContourPlot(OnMatplotlibAxes):
         self.Z = self.df
         #print(self.Z)
 
-        OnMatplotlibAxes.__init__(self, ax, interactive)
+        OnMatplotlibAxes.__init__(self, ax, keys)
 
         # more aliases
 
@@ -679,8 +679,8 @@ class ContourPlot(OnMatplotlibAxes):
 
         self.scatter_stars = scatter_stars
 
-    def draw(self):
-        Subfigure.draw(self)
+    def draw(self, interactive):
+        Subfigure.draw(self, interactive)
 
         #X,Y = np.meshgrid(np.linspace(0.2, 0.9, 8), np.linspace(0.2, 0.9, 8))
         X,Y = np.meshgrid(self.Z.columns, self.Z.index)
@@ -694,35 +694,35 @@ class ContourPlot(OnMatplotlibAxes):
         #cbar.add_lines(contourf)
 
         if self.scatter_stars:
-            self.scatter_point_estimates()
+            self.scatter_point_estimates(interactive)
 
         plt.title(self.title)
-        plt.xlabel(pretty_names[self.interactive.key2])
-        plt.ylabel(pretty_names[self.interactive.key1])
+        plt.xlabel(pretty_names[interactive.key2])
+        plt.ylabel(pretty_names[interactive.key1])
 
         plt.sca(self.ax)
-        self.draw_patches()
+        self.draw_patches(interactive)
 
 class ProbabilityContourPlot(ContourPlot):
-    def __init__(self, ax, interactive, df, title, color_label, scatter_stars=True):
+    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
         df = np.exp(df.sort_values(ascending=False)-df.max())
         df.name = 'probability'
         df = df / df.sum()
         #import pdb; pdb.set_trace()
-        super().__init__(ax, interactive, df, title, color_label, scatter_stars=scatter_stars)
+        super().__init__(ax, keys, df, title, color_label, scatter_stars=scatter_stars)
         self.kwargs['levels'] = 5
 
 class Heatmap(OnSeabornAxes):
-    def __init__(self, ax, interactive, df, title, scatter_stars=True):
-        OnSeabornAxes.__init__(self, ax, interactive)
+    def __init__(self, ax, keys, df, title, scatter_stars=True):
+        OnSeabornAxes.__init__(self, ax, keys)
         self.stacked_df = df
         self.df = df.unstack()
         self.title = title
 
         self.scatter_stars = scatter_stars
 
-    def draw(self):
-        Subfigure.draw(self)
+    def draw(self, interactive):
+        Subfigure.draw(self, interactive)
 
         print("df before heatmap\n", self.df)
         #import pdb; pdb.set_trace()
@@ -753,8 +753,8 @@ class ConfidenceHeatmap(Heatmap):
         confidence_mask = sum(confidence_masks)
         return confidence_mask
 
-    def draw(self):
-        Subfigure.draw(self)
+    def draw(self, interactive):
+        Subfigure.draw(self, interactive)
         cmap = sns.color_palette("Greens", self.n_masks)
         #cmap.set_bad("black")
         in_no_group_mask = np.where(self.df==0., True, False)
@@ -773,15 +773,15 @@ class ConfidenceHeatmap(Heatmap):
         #ax.set_xticklabels([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
 
         if self.scatter_stars:
-            self.scatter_point_estimates()
+            self.scatter_point_estimates(interactive)
 
         plt.title(self.title)
 
-        self.draw_patches()
+        self.draw_patches(interactive)
 
 class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
-    def __init__(self, ax, interactive, df, title, scatter_stars=True):
-        super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
+    def __init__(self, ax, keys, df, title, scatter_stars=True):
+        super().__init__(ax, keys, df, title, scatter_stars=scatter_stars)
         #import pdb; pdb.set_trace()
         #self.df = self.normalize_probability(self.df.unstack()).unstack().T
         self.n_masks = 1
@@ -790,8 +790,8 @@ class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
         #import pdb; pdb.set_trace()
 
 class ManyMasksConfidenceHeatmap(ConfidenceHeatmap):
-    def __init__(self, ax, interactive, df, title, scatter_stars=True):
-        super().__init__(ax, interactive, df, title, scatter_stars=scatter_stars)
+    def __init__(self, ax, keys, df, title, scatter_stars=True):
+        super().__init__(ax, keys, df, title, scatter_stars=scatter_stars)
         self.df = self.find_confidence_mask(self.df.unstack(), percentiles=(0.99, 0.95, 0.90, 0.85)).unstack().T
         self.n_masks = 4
         self.labels = reversed(["85%", "90%", "95%", "99%"])
