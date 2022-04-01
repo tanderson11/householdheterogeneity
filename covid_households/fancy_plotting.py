@@ -1,8 +1,6 @@
 # Initialization
 from typing import NamedTuple
 
-from numpy.lib import percentile
-from pandas.tseries import offsets
 import likelihood
 import utilities
 import pandas as pd
@@ -14,8 +12,6 @@ import traits
 import seaborn as sns
 import operator
 
-
-import constants
 import recipes
 
 EMPIRICAL_TRIAL_ID = -1
@@ -142,8 +138,6 @@ class InteractiveFigure:
         hsar = hsar if hsar is not None else keys.get('SAR', None)
         if hsar is None: beta = keys['beta']
 
-        trait_dict = {}
-
         parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
         params = parameterization(**keys)
 
@@ -151,6 +145,7 @@ class InteractiveFigure:
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
 
+        # prefixing column names with 'sample' so that likelihood technology automatically which df is which
         relabeled = {x:f'sample {x}' for x in keys}
         df.rename(columns=relabeled, inplace=True)
 
@@ -539,7 +534,7 @@ class OnAxesSubfigure(Subfigure):
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             x_min, y_min = self.index_to_xy(x_min_index, y_min_index)
 
             x_min = x_min + self.center_offset# + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap
