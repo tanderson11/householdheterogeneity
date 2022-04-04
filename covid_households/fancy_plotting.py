@@ -42,37 +42,36 @@ def find_most_likely(logl_df, keys):
 class InteractiveFigure:
     def __init__(
             self,
-            pool_df,
             keys,
             subplots,
+            frequency_df,
             full_sample_df=None,
-            frequency_df=None,
             is_empirical=False,
             baseline_values=None,
-            recompute_logl=False,
             empirical_path=False,
             simulation_sample_size=100,
             unspoken_parameters={},
             patch_palette='sequential',
-            figsize=(15,7)):
+            figsize=(15,7),
+            baseline_color='red'):
 
         self.figsize = figsize
-
         self.is_empirical = is_empirical
-        if pool_df is not None:
-            self.frequency_df = likelihood.frequencies_from_synthetic(pool_df, keys)
-        else:
-            assert frequency_df is not None
-            print(frequency_df)
-            self.frequency_df = frequency_df
-            # if we want to fix a parameter outside of our 2D slice,
-            # we need to ensure its value is constant in the frequency_df
-            if unspoken_parameters is not None:
-                for k,v in unspoken_parameters.items():
-                    try:
-                        self.frequency_df = self.frequency_df[self.frequency_df.index.get_level_values(k) == v]
-                    except KeyError:
-                        pass
+
+        assert frequency_df is not None
+        print(frequency_df)
+        self.frequency_df = frequency_df
+        # if we want to fix a parameter outside of our 2D slice,
+        # we need to ensure its value is constant in the frequency_df
+        if unspoken_parameters is not None:
+            for k,v in unspoken_parameters.items():
+                try:
+                    self.frequency_df = self.frequency_df[self.frequency_df.index.get_level_values(k) == v]
+                except KeyError:
+                    pass
+            
+            # drop the unnecessary index levels
+            self.frequency_df.index = self.frequency_df.index.droplevel(list(unspoken_parameters.keys()))
 
         self.reset_freqs = self.frequency_df.reset_index()
         self.keys = keys
@@ -96,7 +95,6 @@ class InteractiveFigure:
             self.sample_df = full_sample_df
         else:
             # -- Selecting the location of the baseline point --
-            #import pdb; pdb.set_trace()
             if baseline_values is None:
                 baseline_coordinates = {self.key1:self.reset_freqs[self.key1].iloc[0], self.key2:self.reset_freqs[self.key2].iloc[0]}
             else:
@@ -105,16 +103,13 @@ class InteractiveFigure:
             print("SAMPLE_DF:\n", self.sample_df)
 
             if self.full_sample_df is None:
-                #import pdb; pdb.set_trace()
                 self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
             else:
                 self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
-        #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
 
-        #self.baseline_color = "orange"
-        self.baseline_color = "red"
+        self.baseline_color = baseline_color
         self.baseline_point = SelectedPoint(baseline_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points = [self.baseline_point]
@@ -145,7 +140,6 @@ class InteractiveFigure:
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
 
-        #import pdb; pdb.set_trace()
         df = df.reset_index().set_index(list(keys.keys()) + ['size', 'infections'])
 
         if unspoken_parameters is not None:
@@ -194,9 +188,8 @@ class InteractiveFigure:
                     color = ax.associated_subfigure.remove_patch(removed) #remove the patch from each subfigure that uses patches
 
             self.available_colors.append(color)
-            self.draw_after_toggle()
 
-        self.fig.canvas.draw()
+        self.draw_after_toggle()
 
     def draw_after_toggle(self):
         for ax in self.ax.ravel():
@@ -205,6 +198,7 @@ class InteractiveFigure:
                 sf.draw_patches(self)
             elif isinstance(sf, SelectionDependentSubfigure): # subfigures that depend on the selection need to redraw
                 sf.draw(self)
+        self.fig.canvas.blit(self.fig.bbox)
 
     def select(self, parameter_coordinates, **kwargs):
         try:
@@ -217,7 +211,6 @@ class InteractiveFigure:
         self.selected_points.append(point)
 
         self.draw_after_toggle()
-
         return point
 
     def make_figure(self):
@@ -238,18 +231,16 @@ class InteractiveFigure:
         self.new_baseline_flag = False
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
-        #import pdb; pdb.set_trace()
+
         slide_name = f"slide-ss{self.simulation_sample_size}"
         for k,v in self.baseline_point.parameter_coordinates.items():
             slide_name += f'-{k[0]}{v}'
-        plt.savefig(f'mass_produced/{slide_name}.png', dpi=400),# bbox_inches='tight')
+        #plt.savefig(f'mass_produced/{slide_name}.png', dpi=400),# bbox_inches='tight')
         plt.show()
-
 
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        #import pdb; pdb.set_trace()
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
         if self.full_sample_df is None:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
@@ -259,7 +250,6 @@ class InteractiveFigure:
         self.selected_points[0] = self.baseline_point
 
         plt.close()
-
         self.make_figure()
 
     def draw(self):
@@ -285,8 +275,8 @@ def subfigure_factory(plot_type, ax, interactive):
     keys = (interactive.key1, interactive.key2)
     if plot_type == 'logl heatmap':
         # new code with the full logl df
-        trialber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber] # pulling out the coordinates of the baseline and the trialber
+        trial = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial] # pulling out the coordinates of the baseline and the trial
 
         print("LOGL DF\n", logl_df)
 
@@ -307,36 +297,39 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = Heatmap(ax, logl_df, title, scatter_stars=True)
 
     elif plot_type == 'confidence heatmap':
-        trialber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
+        trial = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial]
         title = ""
         subfigure = InOrOutConfidenceIntervalHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'many confidence heatmap':
-        trialber = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trialber]
+        trial = 0
+        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial]
         title = "Membership in cumulative probability density contours"
         subfigure = ManyMasksConfidenceHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'logl contour plot':
-        trialber=0
+        trial=0
         # unstacked for Z
         logl_df = interactive.logl_df.loc[
             interactive.baseline_point.parameter_coordinates[interactive.key1],
             interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trialber] # pulling out the coordinates of the baseline and the trialber
+            trial] # pulling out the coordinates of the baseline and the trial
         print(logl_df)
         subfigure = ContourPlot(ax, keys, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif plot_type == 'probability contour plot':
-        trialber=0
+        trial=0
         # unstacked for Z
         logl_df = interactive.logl_df.loc[
             interactive.baseline_point.parameter_coordinates[interactive.key1],
             interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trialber] # pulling out the coordinates of the baseline and the trialber
+            trial] # pulling out the coordinates of the baseline and the trial
         print(logl_df)
-        subfigure = ProbabilityContourPlot(ax, keys, logl_df, "", color_label="probability")
+        prob_df = np.exp(logl_df.sort_values(ascending=False)-logl_df.max())
+        prob_df.name = 'probability'
+        prob_df = prob_df / prob_df.sum()
+        subfigure = ProbabilityContourPlot(ax, keys, prob_df, "", color_label="probability")
 
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, keys)
@@ -357,21 +350,22 @@ class Subfigure:
     def draw(self, interactive):
         plt.sca(self.ax)
         plt.cla()
-        print("clearing", type(self))
 
 class SelectionDependentSubfigure(Subfigure):
     def frequency_df_at_point(self, interactive, point, drop_level=None):
         labels = [point.parameter_coordinates[self.key1], point.parameter_coordinates[self.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
             restriction = interactive.sample_df.copy()
+            # Only works if we have one size of household in our data
+            restriction['freq'] = restriction['count'] / restriction['count'].sum()
+            restriction = restriction['freq']
         else: # otherwise, we select only the comparison distributions at the relevant points
             masks = [interactive.reset_freqs[self.key1] == labels[0], interactive.reset_freqs[self.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
             mask = functools.reduce(operator.and_, masks)
             mask.index = interactive.frequency_df.index
             restriction = interactive.frequency_df[mask]
-        # Only works if we have one size of household in our data
-        restriction['freq'] = restriction['count'] / restriction['count'].sum()
-        restriction = restriction['freq']
+            restriction.name = 'freq'
+            #import pdb; pdb.set_trace()
         if drop_level:
             restriction.index = restriction.index.droplevel(drop_level)
             if self.key1 == drop_level:
@@ -482,7 +476,7 @@ class InfectionHistogram(SelectionDependentSubfigure):
         #import pdb; pdb.set_trace()
         ax = utilities.simple_bar_chart(restricted_df, key=keys, color=color_dict, title="", ax=self.ax, ylabel="fraction observed", xlabel="household size, observed number infected")
         #ax.legend(title='top 20% portion')
-        ax.legend(title='household secondary attack rate')
+        #ax.legend(title='household secondary attack rate')
         offsets = (0.04*i for i in range(0, len(restrictions)))
         #for labels, average in average_dict.items():
         #    offset = next(offsets)
@@ -508,15 +502,13 @@ class OnAxesSubfigure(Subfigure):
 
     def draw_patches(self, interactive):
         for point in interactive.selected_points:
-            if True:
-            #if interactive.empirical == False or point.is_baseline == False: # draw the patch if it's a selection or if it's the baseline but not empirical
-                x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
+            x,y = self.parameter_coordinates_to_xy(point.parameter_coordinates)
 
-                try:
-                    self.patches[(x,y)]
-                except KeyError:
-                    patch = self.draw_patch(point, x,y)
-                    self.patches[(x,y)] = patch
+            try:
+                self.patches[(x,y)]
+            except KeyError:
+                patch = self.draw_patch(point, x,y)
+                self.patches[(x,y)] = patch
 
     def scatter_point_estimates(self, interactive, **kwargs):
         print("IN SCATTER")
@@ -673,11 +665,8 @@ class ContourPlot(OnMatplotlibAxes):
 
         OnMatplotlibAxes.__init__(self, ax, keys)
 
-        # more aliases
-
         self.title = title
         self.color_label = color_label
-
         self.scatter_stars = scatter_stars
 
     def draw(self, interactive):
@@ -706,9 +695,6 @@ class ContourPlot(OnMatplotlibAxes):
 
 class ProbabilityContourPlot(ContourPlot):
     def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
-        df = np.exp(df.sort_values(ascending=False)-df.max())
-        df.name = 'probability'
-        df = df / df.sum()
         #import pdb; pdb.set_trace()
         super().__init__(ax, keys, df, title, color_label, scatter_stars=scatter_stars)
         self.kwargs['levels'] = 5

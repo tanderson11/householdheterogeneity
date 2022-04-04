@@ -35,10 +35,9 @@ if test == 'test2':
     plotting_keys = ["p80", "SAR"]
 
     fancy_plotting.InteractiveFigure(
-        None,
         plotting_keys,
         figures,
-        frequency_df=frequency_df,
+        frequency_df,
         unspoken_parameters={'s80':0.80},
         simulation_sample_size=150,
         figsize=(10, 4.5))
