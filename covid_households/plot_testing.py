@@ -26,7 +26,7 @@ if test == 'test1':
         figsize=(10, 4.5))
 
 if test == 'test2':
-    figures = np.array(["probability contour plot", "many confidence heatmap"]).reshape((1,2))
+    figures = np.array(["probability contour plot", "many confidence heatmap", "infection histograms", "trait histograms"]).reshape((2,2))
     results = recipes.Results.load("/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8/full_results/")
     frequency_df = results.df
     #import pdb; pdb.set_trace()

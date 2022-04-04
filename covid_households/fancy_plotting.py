@@ -1,17 +1,16 @@
 # Initialization
 from typing import NamedTuple
-
-import likelihood
-import utilities
 import pandas as pd
 import numpy as np
 import functools
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import traits
 import seaborn as sns
 import operator
 
+import likelihood
+import utilities
+import traits
 import recipes
 
 EMPIRICAL_TRIAL_ID = -1
@@ -84,7 +83,7 @@ class InteractiveFigure:
         self.unspoken_parameters = unspoken_parameters
 
         if self.is_empirical:
-            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys)
+            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
 
@@ -106,9 +105,10 @@ class InteractiveFigure:
             print("SAMPLE_DF:\n", self.sample_df)
 
             if self.full_sample_df is None:
-                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'])
+                #import pdb; pdb.set_trace()
+                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
             else:
-                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'])
+                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
         #import pdb; pdb.set_trace()
 
         self.sample_model_dict = {}
@@ -131,7 +131,7 @@ class InteractiveFigure:
         self.make_figure()
 
     @staticmethod
-    def simulate_at_point(keys, sizes, model=recipes.Model()):
+    def simulate_at_point(keys, sizes, unspoken_parameters=None, model=recipes.Model()):
         # keys = dictionary {key: value}
         beta = None
         hsar = keys.get('hsar', None)
@@ -145,9 +145,11 @@ class InteractiveFigure:
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
 
-        # prefixing column names with 'sample' so that likelihood technology automatically which df is which
-        relabeled = {x:f'sample {x}' for x in keys}
-        df.rename(columns=relabeled, inplace=True)
+        #import pdb; pdb.set_trace()
+        df = df.reset_index().set_index(list(keys.keys()) + ['size', 'infections'])
+
+        if unspoken_parameters is not None:
+            df = df.set_index(df.index.droplevel(list(unspoken_parameters.keys())))
 
         class SimulationResult(NamedTuple):
             df: pd.DataFrame
@@ -161,7 +163,7 @@ class InteractiveFigure:
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
-            baseline_df = self.simulate_at_point(keys, sizes).df
+            baseline_df = self.simulate_at_point(keys, sizes, self.unspoken_parameters).df
         else:
             baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
 
@@ -200,9 +202,9 @@ class InteractiveFigure:
         for ax in self.ax.ravel():
             sf = ax.associated_subfigure
             if sf.has_patches: # subfigures that have patches need to update the patches
-                sf.draw_patches()
+                sf.draw_patches(self)
             elif isinstance(sf, SelectionDependentSubfigure): # subfigures that depend on the selection need to redraw
-                sf.draw()
+                sf.draw(self)
 
     def select(self, parameter_coordinates, **kwargs):
         try:
@@ -250,7 +252,7 @@ class InteractiveFigure:
         #import pdb; pdb.set_trace()
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
         if self.full_sample_df is None:
-            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2])
+            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
         print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
@@ -337,10 +339,10 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = ProbabilityContourPlot(ax, keys, logl_df, "", color_label="probability")
 
     elif plot_type == 'infection histograms':
-        subfigure = InfectionHistogram(ax)
+        subfigure = InfectionHistogram(ax, keys)
 
     elif plot_type == 'trait histograms':
-        subfigure = TraitHistograms(ax)
+        subfigure = TraitHistograms(ax, keys)
 
     return subfigure
 
@@ -359,44 +361,43 @@ class Subfigure:
 
 class SelectionDependentSubfigure(Subfigure):
     def frequency_df_at_point(self, interactive, point, drop_level=None):
-        labels = [point.parameter_coordinates[interactive.key1], point.parameter_coordinates[interactive.key2]] # ie we could use .values if the dict were sorted, TK
+        labels = [point.parameter_coordinates[self.key1], point.parameter_coordinates[self.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
-            restriction = likelihood.frequencies_from_synthetic(interactive.sample_df, interactive.keys)
+            restriction = interactive.sample_df.copy()
         else: # otherwise, we select only the comparison distributions at the relevant points
-            masks = [interactive.reset_freqs[interactive.key1] == labels[0], interactive.reset_freqs[interactive.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
+            masks = [interactive.reset_freqs[self.key1] == labels[0], interactive.reset_freqs[self.key2] == labels[1]] # is true precisely where our two keys are at the chosen parameter values
             mask = functools.reduce(operator.and_, masks)
             mask.index = interactive.frequency_df.index
             restriction = interactive.frequency_df[mask]
-        restriction.name = 'freq'
+        # Only works if we have one size of household in our data
+        restriction['freq'] = restriction['count'] / restriction['count'].sum()
+        restriction = restriction['freq']
         if drop_level:
-            #import pdb; pdb.set_trace()
             restriction.index = restriction.index.droplevel(drop_level)
-            if interactive.key1 == drop_level:
+            if self.key1 == drop_level:
                 labels = labels[1:]
-            if interactive.key2 == drop_level:
+            if self.key2 == drop_level:
                 labels = labels[:1]
             #pass
         return labels, restriction
 
 class TraitHistograms(SelectionDependentSubfigure):
-    def __init__(self, ax, keys, interactive):
-        SelectionDependentSubfigure.__init__(self, ax, keys, interactive)
+    def __init__(self, ax, keys):
+        SelectionDependentSubfigure.__init__(self, ax, keys)
 
     def draw(self, interactive):
         SelectionDependentSubfigure.draw(self, interactive)
         possible_traits = ["sus_var", "inf_var", "sus_mass", "inf_mass", "s80", "p80"]
-        if interactive.key1 in possible_traits and interactive.key2 in possible_traits:
+        if self.key1 in possible_traits and self.key2 in possible_traits:
             print("WARNING: both keys are traits. Graphing only key1")
-        print(interactive.keys)
-        if interactive.key1 in possible_traits:
-            graph_key = interactive.key1
-        elif interactive.key2 in possible_traits:
-            graph_key = interactive.key2
+        if self.key1 in possible_traits:
+            graph_key = self.key1
+        elif self.key2 in possible_traits:
+            graph_key = self.key2
         else:
             return None
 
-        #import pdb; pdb.set_trace()
-        bins = np.linspace(0., 6., 30)
+        #bins = np.linspace(0., 6., 30)
         bins = np.linspace(0., 7., 20)
         colors = []
         outputs = []
@@ -415,7 +416,7 @@ class TraitHistograms(SelectionDependentSubfigure):
                 alt_cmap = plt.get_cmap("Oranges")
                 color = [alt_cmap(x) for x in np.linspace(0.2, 0.7, 4)][2]
             colors.append(color)
-            samples = 1000000
+            samples = 40000
             shaped_array = np.full((samples,), True)
             output = np.array(trait(shaped_array))
             outputs.append(output)
@@ -430,10 +431,11 @@ class TraitHistograms(SelectionDependentSubfigure):
         #plt.title("Gamma distributed {0}".format(graph_key))
 
 class InfectionHistogram(SelectionDependentSubfigure):
-    def __init__(self, ax, keys, interactive, drop_level=None):
-        SelectionDependentSubfigure.__init__(self, ax, keys, interactive)
+    def __init__(self, ax, keys, drop_level=None, highlight_special_value=True):
+        SelectionDependentSubfigure.__init__(self, ax, keys)
         self.drop_level = drop_level
-        self.drop_level = 'hsar'
+        self.drop_level = 'SAR'
+        self.highlight_special_value = highlight_special_value
 
     def draw(self, interactive):
         SelectionDependentSubfigure.draw(self, interactive)
@@ -444,7 +446,6 @@ class InfectionHistogram(SelectionDependentSubfigure):
         restrictions = []
         #import pdb; pdb.set_trace()
         for p in interactive.selected_points:
-
             labels, restriction = self.frequency_df_at_point(interactive, p, drop_level=self.drop_level)
             if len(labels) > 1:
                 labels = tuple(labels)
@@ -452,12 +453,12 @@ class InfectionHistogram(SelectionDependentSubfigure):
                 labels = labels[0]
             color_dict[labels] = p.color
             # SPECIAL
-            if p.parameter_coordinates['hsar'] == 0.25:
-                alt_cmap = plt.get_cmap("Oranges")
-                color_dict[0.2] = [alt_cmap(x) for x in np.linspace(0.2, 0.7, 4)][2]
+            if self.highlight_special_value:
+                if p.parameter_coordinates['SAR'] == 0.25:
+                    alt_cmap = plt.get_cmap("Oranges")
+                    color_dict[0.2] = [alt_cmap(x) for x in np.linspace(0.2, 0.7, 4)][2]
 
             reset_restriction = restriction.reset_index()
-            #average_dict[tuple(labels)] = restriction['infections'].mean() #old
             average_dict[labels] = (reset_restriction['infections'] * reset_restriction['freq']).sum()
             if p.is_baseline:
                 baseline_restriction = restriction
@@ -489,7 +490,7 @@ class InfectionHistogram(SelectionDependentSubfigure):
 
 class OnAxesSubfigure(Subfigure):
     '''A class that holds a figure and can manage coordinates, plot patches, and other aspects of interactive selection.
-    
+
     Needs to be specialized to different frameworks via the subclasses OnMatplotlibAxes and OnSeabornAxes, which handle the different ways of converting coordinates to xy.'''
     def __init__(self, ax, keys):
         Subfigure.__init__(self, ax, keys)
@@ -745,7 +746,7 @@ class ConfidenceHeatmap(Heatmap):
         return normalized_probability
 
     @classmethod
-    def find_confidence_mask(cls, df, percentiles=[0.95]):
+    def find_confidence_mask(cls, df, percentiles=(0.95)):
         normalized_probability = cls.normalize_probability(df)
         confidence_masks = []
         for p in percentiles:

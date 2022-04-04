@@ -35,7 +35,7 @@ class Model(NamedTuple):
     secondary_infections: bool = True # for debugging / testing
     intervention: Intervention = None
 
-    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False, nice_index=False):
         assert household_beta is not None
         #import pdb; pdb.set_trace()
         if population is None:
@@ -60,6 +60,7 @@ class Model(NamedTuple):
         if as_counts:
             df = pd.DataFrame(df.groupby(['size','infections']).size())
             df.rename(columns={0:'count'}, inplace=True)
+
         return df
 
     def run_grid(self, sizes, region, progress_path=None):
