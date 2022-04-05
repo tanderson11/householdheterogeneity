@@ -4,10 +4,14 @@ import traits
 
 import abc
 
-### Initial infection seeding utility functions
+### Probability math
+def normalize_logl_as_probability(logl_df):
+    prob_df = np.exp(logl_df.sort_values(ascending=False)-logl_df.max())
+    prob_df.name = 'probability'
+    prob_df = prob_df / prob_df.sum()
+    return prob_df
 
 ### Graphing utility functions
-
 def simple_bar_chart(df, key=None, drop_level=None, **kwargs):
     print(df)
     #import pdb; pdb.set_trace()

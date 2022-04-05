@@ -40,21 +40,28 @@ def find_most_likely(logl_df, keys):
 
 class InteractiveFigure:
     @staticmethod
-    def restrict_to_dimensions_of_interest(frequency_df, unspoken_parameters):
-        '''Takes a dataframe of frequencies with arbitrarily many index dimensions, and reduces it to the two relevant dimensions for plotting.
+    def restrict_to_dimensions_of_interest(df, unspoken_parameters):
+        '''Takes a dataframe with arbitrarily many index dimensions, and reduces it to the two relevant dimensions for plotting.
         
         Unspoken parameters is a dictionary of parameters-->values for each of the dimensions that /won't/ be plotted in order to find the right 2D slice to plot.'''
         if unspoken_parameters is None:
-            return frequency_df
+            return df
 
         for k,v in unspoken_parameters.items():
             try:
-                frequency_df = frequency_df[frequency_df.index.get_level_values(k) == v]
+                df = df[df.index.get_level_values(k) == v]
             except KeyError:
                 pass
         # drop the unnecessary index levels
-        frequency_df.index = frequency_df.index.droplevel(list(unspoken_parameters.keys()))
-        return frequency_df
+        df.index = df.index.droplevel(list(unspoken_parameters.keys()))
+        return df
+
+    def get_nD_sample_df(self):
+        nD_sample_df = self.sample_df.copy()
+        # rebuild each of the layers that were removed to get to a 2D plotting sample DF
+        for k,v in self.unspoken_parameters.items():
+            nD_sample_df = pd.concat({v: self.sample_df}, names=[k])
+        return nD_sample_df
 
     def __init__(
             self,
@@ -91,6 +98,7 @@ class InteractiveFigure:
         self.full_sample_df = full_sample_df
         self.simulation_sample_size = simulation_sample_size
 
+        self.logl_df = None
         if self.is_empirical:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
@@ -166,6 +174,7 @@ class InteractiveFigure:
             unique_sizes = self.frequency_df.reset_index()['size'].unique()
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
+            #import pdb; pdb.set_trace()
             keys = {**self.unspoken_parameters, **baseline_coordinates}
             baseline_df = self.simulate_at_point(keys, sizes, self.unspoken_parameters).df
         else:
@@ -275,8 +284,6 @@ class InteractiveFigure:
             self.new_baseline_flag = True
 
 def subfigure_factory(plot_type, ax, interactive):
-    possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot', 'probability contour plot']
-    assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
     keys = (interactive.key1, interactive.key2)
     trial = 0
     logl_df = interactive.logl_df.loc[
@@ -315,20 +322,47 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = ContourPlot(ax, keys, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif 'probability contour plot' in plot_type:
+        kwargs = {}
         if '2D slice' in plot_type:
-            pass
+            full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
+            logl_df = likelihood.logl_from_frequencies_and_counts(
+                interactive.nD_frequency_df,
+                interactive.get_nD_sample_df(),
+                full_keys,
+                sample_only_keys=['trial'],
+                count_columns_to_prefix=full_keys,
+            )
+            prob_df = utilities.normalize_logl_as_probability(logl_df)
+            max_prob = prob_df.max()
+            print(f"Global probability maximum: {max_prob}")
+
+            # now we have to reduce the dimensions again to the ones that are appropriate for plotting
+            dropped_parameters = interactive.unspoken_parameters
+            sample_dropped_parameters = {'sample ' + k: v for k,v in dropped_parameters.items()}
+            sample_dropped_parameters.update(dropped_parameters)
+            prob_df = interactive.restrict_to_dimensions_of_interest(prob_df, sample_dropped_parameters)
+            prob_df = prob_df.loc[
+                interactive.baseline_point.parameter_coordinates[interactive.key1],
+                interactive.baseline_point.parameter_coordinates[interactive.key2],
+                trial
+            ]
+            kwargs.update({'vmin':0.0, 'vmax':max_prob})
+            #import pdb; pdb.set_trace()
         elif '2D only' in plot_type:
-            pass
-        prob_df = np.exp(logl_df.sort_values(ascending=False)-logl_df.max())
-        prob_df.name = 'probability'
-        prob_df = prob_df / prob_df.sum()
-        subfigure = ProbabilityContourPlot(ax, keys, prob_df, "", color_label="probability")
+            prob_df = utilities.normalize_logl_as_probability(logl_df)
+            #import pdb; pdb.set_trace()
+        else:
+            raise Exception(f"unknown plot type {plot_type}")
+        
+        subfigure = ProbabilityContourPlot(ax, keys, prob_df, "", color_label="probability", **kwargs)
 
     elif plot_type == 'infection histograms':
         subfigure = InfectionHistogram(ax, keys)
 
     elif plot_type == 'trait histograms':
         subfigure = TraitHistograms(ax, keys)
+    else:
+        raise Exception(f"unknown plot type {plot_type}")
 
     return subfigure
 
@@ -477,8 +511,8 @@ class OnAxesSubfigure(Subfigure):
     '''A class that holds a figure and can manage coordinates, plot patches, and other aspects of interactive selection.
 
     Needs to be specialized to different frameworks via the subclasses OnMatplotlibAxes and OnSeabornAxes, which handle the different ways of converting coordinates to xy.'''
-    def __init__(self, ax, keys):
-        Subfigure.__init__(self, ax, keys)
+    def __init__(self, ax, keys, **plotting_kwargs):
+        Subfigure.__init__(self, ax, keys, **plotting_kwargs)
         self.has_patches = True
         self.patches = {}
 
@@ -540,8 +574,8 @@ class OnAxesSubfigure(Subfigure):
         return point.color
 
 class OnMatplotlibAxes(OnAxesSubfigure):
-    def __init__(self, ax, keys):
-        OnAxesSubfigure.__init__(self, ax, keys)
+    def __init__(self, ax, keys, **plotting_kwargs):
+        OnAxesSubfigure.__init__(self, ax, keys, **plotting_kwargs)
         self.center_offset = 0.0
 
         self.x_grid_values = self.df.columns.to_numpy()
@@ -639,12 +673,12 @@ class OnSeabornAxes(OnAxesSubfigure):
         return patch
 
 class ContourPlot(OnMatplotlibAxes):
-    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
+    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True, **kwargs):
         self.df = df.unstack()
         self.stacked_df = df
         #alias of df
         self.Z = self.df
-        OnMatplotlibAxes.__init__(self, ax, keys)
+        OnMatplotlibAxes.__init__(self, ax, keys, **kwargs)
 
         self.title = title
         self.color_label = color_label
@@ -655,6 +689,7 @@ class ContourPlot(OnMatplotlibAxes):
 
         #X,Y = np.meshgrid(np.linspace(0.2, 0.9, 8), np.linspace(0.2, 0.9, 8))
         X,Y = np.meshgrid(self.Z.columns, self.Z.index)
+        print(self.kwargs)
         contourf = plt.contourf(X, Y, self.Z, **self.kwargs)
 
         #self.ax.set_ylim(self.ax.get_ylim()[::-1]) # invert the y-axis
@@ -675,10 +710,11 @@ class ContourPlot(OnMatplotlibAxes):
         self.draw_patches(interactive)
 
 class ProbabilityContourPlot(ContourPlot):
-    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
+    def __init__(self, ax, keys, df, title, color_label, scatter_stars=True, **kwargs):
         #import pdb; pdb.set_trace()
-        super().__init__(ax, keys, df, title, color_label, scatter_stars=scatter_stars)
-        self.kwargs['levels'] = 5
+        kwargs.update({'levels':5})
+        super().__init__(ax, keys, df, title, color_label, scatter_stars=scatter_stars, **kwargs)
+        #self.kwargs['levels'] = 5
 
 class Heatmap(OnSeabornAxes):
     def __init__(self, ax, keys, df, title, scatter_stars=True):
