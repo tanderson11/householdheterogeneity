@@ -11,7 +11,7 @@ if test == 'test1':
     index = ['sus_mass', 'inf_mass', 'hsar', 'size', 'infections']
     desired_slice = preparation.extract_slice('/Users/thayer/covid_households/final_push/by_mass/combined_frequency_df2.parquet', key_ranges, index)
     desired_slice = desired_slice.droplevel('sus_mass')
-    
+
     #figures = np.array(["logl contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
     #figures = np.array(["probability contour plot", "infection histograms", "many confidence heatmap", "trait histograms"]).reshape((2,2))
     figures = np.array(["probability contour plot", "many confidence heatmap"]).reshape((1,2))

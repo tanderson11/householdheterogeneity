@@ -34,12 +34,28 @@ def find_most_likely(logl_df, keys):
     #import pdb; pdb.set_trace()
     x_min = idx % width
     y_min = idx // width
-    print(x_min, y_min)
     baseline_1 = logl_df.unstack().reset_index()[keys[0]].to_list()[y_min]
     baseline_2 = logl_df.unstack().columns.to_list()[x_min] #columns associated with key2, index with key1
     return baseline_1, baseline_2
 
 class InteractiveFigure:
+    @staticmethod
+    def restrict_to_dimensions_of_interest(frequency_df, unspoken_parameters):
+        '''Takes a dataframe of frequencies with arbitrarily many index dimensions, and reduces it to the two relevant dimensions for plotting.
+        
+        Unspoken parameters is a dictionary of parameters-->values for each of the dimensions that /won't/ be plotted in order to find the right 2D slice to plot.'''
+        if unspoken_parameters is None:
+            return frequency_df
+
+        for k,v in unspoken_parameters.items():
+            try:
+                frequency_df = frequency_df[frequency_df.index.get_level_values(k) == v]
+            except KeyError:
+                pass
+        # drop the unnecessary index levels
+        frequency_df.index = frequency_df.index.droplevel(list(unspoken_parameters.keys()))
+        return frequency_df
+
     def __init__(
             self,
             keys,
@@ -59,19 +75,14 @@ class InteractiveFigure:
         self.is_empirical = is_empirical
 
         assert frequency_df is not None
-        print(frequency_df)
+        # a copy that will be reduced to the appropriate 2 dimensions for plotting
         self.frequency_df = frequency_df
+        # a copy of the maximum dimension used for some probability plots
+        self.nD_frequency_df = frequency_df.copy()
         # if we want to fix a parameter outside of our 2D slice,
         # we need to ensure its value is constant in the frequency_df
-        if unspoken_parameters is not None:
-            for k,v in unspoken_parameters.items():
-                try:
-                    self.frequency_df = self.frequency_df[self.frequency_df.index.get_level_values(k) == v]
-                except KeyError:
-                    pass
-            
-            # drop the unnecessary index levels
-            self.frequency_df.index = self.frequency_df.index.droplevel(list(unspoken_parameters.keys()))
+        self.unspoken_parameters = unspoken_parameters
+        self.frequency_df = self.restrict_to_dimensions_of_interest(frequency_df, unspoken_parameters)
 
         self.reset_freqs = self.frequency_df.reset_index()
         self.keys = keys
@@ -79,7 +90,6 @@ class InteractiveFigure:
 
         self.full_sample_df = full_sample_df
         self.simulation_sample_size = simulation_sample_size
-        self.unspoken_parameters = unspoken_parameters
 
         if self.is_empirical:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
@@ -215,13 +225,9 @@ class InteractiveFigure:
 
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
-        #figsize = (self.subplots.shape[0] * 3.5, self.subplots.shape[1] * 7.5)
-        #if self.subplots.shape == (2,2): figsize = (15,7)
         self.fig, self.ax = plt.subplots(*self.subplots.shape, figsize=self.figsize)
 
-        print(self.ax.ravel())
         for subfigure_type, _ax in zip(self.subplots.ravel(), self.ax.ravel()):
-            print("making association")
             _ax.associated_subfigure = subfigure_factory(subfigure_type, _ax, self) # adds a subfigure parameter to each plt axes instance
 
         # -- Drawing --
@@ -244,7 +250,6 @@ class InteractiveFigure:
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
         if self.full_sample_df is None:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
-        print(self.sample_df)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points[0] = self.baseline_point
@@ -273,16 +278,18 @@ def subfigure_factory(plot_type, ax, interactive):
     possible_plot_types = ['logl heatmap', 'confidence heatmap', 'many confidence heatmap', 'logl contour plot', 'average heatmap', 'infection histograms', 'two point likelihoods', 'trait histograms', 'average contour plot', 'probability contour plot']
     assert plot_type in possible_plot_types, "No plot of type {} is known to exist".format(plot_type)
     keys = (interactive.key1, interactive.key2)
+    trial = 0
+    logl_df = interactive.logl_df.loc[
+        interactive.baseline_point.parameter_coordinates[interactive.key1],
+        interactive.baseline_point.parameter_coordinates[interactive.key2],
+        trial
+    ] # pulling out the coordinates of the baseline and the trial
+
     if plot_type == 'logl heatmap':
         # new code with the full logl df
-        trial = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial] # pulling out the coordinates of the baseline and the trial
-
-        print("LOGL DF\n", logl_df)
-
         if interactive.is_empirical:
             #import pdb; pdb.set_trace()
-            sizes=interactive.sample_df.groupby("size")["model"].count().to_dict() # idiom for getting the counts at different sizes
+            sizes=interactive.sample_df.groupby("size")["model"].count().to_dict() # idiom for getting the # hh at different sizes
             title = ""
             #title = "Log likelihood of observing empirical dataset\nsizes={}\n fixed values={}".format(sizes, interactive.fixed_values)
         else:
@@ -297,35 +304,21 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = Heatmap(ax, logl_df, title, scatter_stars=True)
 
     elif plot_type == 'confidence heatmap':
-        trial = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial]
         title = ""
         subfigure = InOrOutConfidenceIntervalHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'many confidence heatmap':
-        trial = 0
-        logl_df = interactive.logl_df.loc[interactive.baseline_point.parameter_coordinates[interactive.key1], interactive.baseline_point.parameter_coordinates[interactive.key2], trial]
         title = "Membership in cumulative probability density contours"
         subfigure = ManyMasksConfidenceHeatmap(ax, keys, logl_df, title)
 
     elif plot_type == 'logl contour plot':
-        trial=0
-        # unstacked for Z
-        logl_df = interactive.logl_df.loc[
-            interactive.baseline_point.parameter_coordinates[interactive.key1],
-            interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trial] # pulling out the coordinates of the baseline and the trial
-        print(logl_df)
         subfigure = ContourPlot(ax, keys, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
-    elif plot_type == 'probability contour plot':
-        trial=0
-        # unstacked for Z
-        logl_df = interactive.logl_df.loc[
-            interactive.baseline_point.parameter_coordinates[interactive.key1],
-            interactive.baseline_point.parameter_coordinates[interactive.key2],
-            trial] # pulling out the coordinates of the baseline and the trial
-        print(logl_df)
+    elif 'probability contour plot' in plot_type:
+        if '2D slice' in plot_type:
+            pass
+        elif '2D only' in plot_type:
+            pass
         prob_df = np.exp(logl_df.sort_values(ascending=False)-logl_df.max())
         prob_df.name = 'probability'
         prob_df = prob_df / prob_df.sum()
@@ -460,8 +453,6 @@ class InfectionHistogram(SelectionDependentSubfigure):
             else:
                 restrictions.append(restriction)
                 represented_coordinates.add(labels)
-        print(represented_coordinates)
-        print(baseline_coordinates)
         # only display the baseline if we haven't separately chosen to view that cell
         if baseline_coordinates not in represented_coordinates:
             restrictions.append(baseline_restriction)
@@ -511,9 +502,6 @@ class OnAxesSubfigure(Subfigure):
                 self.patches[(x,y)] = patch
 
     def scatter_point_estimates(self, interactive, **kwargs):
-        print("IN SCATTER")
-        print(self.stacked_df)
-
         width = self.stacked_df.unstack().columns.size
 
         key1_value = interactive.baseline_point.parameter_coordinates[interactive.key1]
@@ -559,11 +547,7 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         self.x_grid_values = self.df.columns.to_numpy()
         self.y_grid_values = self.df.index.to_numpy()
 
-        print("XGRID:", self.x_grid_values)
-        print("YGRID:", self.y_grid_values)
-
         self.patches_do_offset, self.patches_x_scale, self.patches_y_scale = 0, (self.x_grid_values[-1]-self.x_grid_values[0]) / (len(self.x_grid_values)), (self.y_grid_values[-1]-self.y_grid_values[0]) / (len(self.y_grid_values))
-        #import pdb; pdb.set_trace()
 
     def click_to_coordinates(self, event_x, event_y):
         parameter_coordinates = self.xy_to_parameter_coordinates(event_x, event_y)
@@ -658,11 +642,8 @@ class ContourPlot(OnMatplotlibAxes):
     def __init__(self, ax, keys, df, title, color_label, scatter_stars=True):
         self.df = df.unstack()
         self.stacked_df = df
-
         #alias of df
         self.Z = self.df
-        #print(self.Z)
-
         OnMatplotlibAxes.__init__(self, ax, keys)
 
         self.title = title
@@ -711,8 +692,6 @@ class Heatmap(OnSeabornAxes):
     def draw(self, interactive):
         Subfigure.draw(self, interactive)
 
-        print("df before heatmap\n", self.df)
-        #import pdb; pdb.set_trace()
         ax = sns.heatmap(self.df, mask=np.isinf(self.df), ax=self.ax, cbar=True, cmap=sns.cm.rocket_r) # need .unstack() here if we don't do it by default
         ax.invert_yaxis()
 
