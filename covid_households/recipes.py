@@ -58,7 +58,9 @@ class Model(NamedTuple):
 
         df = pd.concat(dfs)
         if as_counts:
-            df = pd.DataFrame(df.groupby(['size','infections']).size())
+            grouping = ['size','infections']
+            if trials > 1: grouping.append('trial')
+            df = pd.DataFrame(df.groupby(grouping).size())
             df.rename(columns={0:'count'}, inplace=True)
 
         return df
@@ -268,7 +270,7 @@ class Results(NamedTuple):
             # simultaneously update min,max sizes and also check that every size is present in every slice
             mi = size_mins.loc[s]
             ma = size_maxs.loc[s]
-            size_dict[s] = (mi,ma) if mi != ma else mi
+            size_dict[str(s)] = (int(mi),int(ma)) if mi != ma else mi
         # need to update sizes dictionary based on results
         # need to work out an example where the combined parts don't share all sizes
         return self.__class__(df3, self.metadata._replace(population=size_dict))

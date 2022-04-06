@@ -73,6 +73,7 @@ class InteractiveFigure:
             baseline_values=None,
             empirical_path=False,
             simulation_sample_size=100,
+            simulation_trials=1,
             unspoken_parameters={},
             patch_palette='sequential',
             figsize=(15,7),
@@ -97,7 +98,10 @@ class InteractiveFigure:
 
         self.full_sample_df = full_sample_df
         self.simulation_sample_size = simulation_sample_size
-
+        if is_empirical:
+            self.trials = 1
+        else:
+            self.trials = simulation_trials
         self.logl_df = None
         if self.is_empirical:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
@@ -117,7 +121,7 @@ class InteractiveFigure:
                 baseline_coordinates = {self.key1:self.reset_freqs[self.key1].iloc[0], self.key2:self.reset_freqs[self.key2].iloc[0]}
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
-            self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=True)
+            self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=(self.trials == 1))
             print("SAMPLE_DF:\n", self.sample_df)
 
             if self.full_sample_df is None:
@@ -154,10 +158,10 @@ class InteractiveFigure:
         parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
         params = parameterization(**keys)
 
-        df = model.run_trials(**params.to_normal_inputs(), sizes=sizes, as_counts=True)
+        df = model.run_trials(**params.to_normal_inputs(), trials=25, sizes=sizes, as_counts=True)
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
-
+        #import pdb; pdb.set_trace()
         df = df.reset_index().set_index(list(keys.keys()) + ['size', 'infections'])
 
         if unspoken_parameters is not None:
@@ -174,7 +178,6 @@ class InteractiveFigure:
             unique_sizes = self.frequency_df.reset_index()['size'].unique()
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
-            #import pdb; pdb.set_trace()
             keys = {**self.unspoken_parameters, **baseline_coordinates}
             baseline_df = self.simulate_at_point(keys, sizes, self.unspoken_parameters).df
         else:
@@ -256,7 +259,7 @@ class InteractiveFigure:
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=True)
+        self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=(self.trials == 1))
         if self.full_sample_df is None:
             self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
@@ -383,6 +386,9 @@ class SelectionDependentSubfigure(Subfigure):
         labels = [point.parameter_coordinates[self.key1], point.parameter_coordinates[self.key2]] # ie we could use .values if the dict were sorted, TK
         if point.is_baseline: # the baseline dataframe is the data at the baseline point, so we pass it along as is
             restriction = interactive.sample_df.copy()
+            # choose only the first trials
+            #import pdb; pdb.set_trace()
+            restriction = restriction[restriction['trial'] == 0]
             # Only works if we have one size of household in our data
             restriction['freq'] = restriction['count'] / restriction['count'].sum()
             restriction = restriction['freq']
@@ -545,6 +551,7 @@ class OnAxesSubfigure(Subfigure):
         x_mins = []
         y_mins = []
         colors = []
+        #import pdb; pdb.set_trace()
         for trial,_logl_df in interactive.logl_df.loc[key1_value, key2_value].groupby("trial"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
