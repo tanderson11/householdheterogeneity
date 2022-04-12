@@ -363,6 +363,31 @@ class Results(NamedTuple):
         repaired = grouped.apply(lambda g: self.repair_missing_counts_in_group(g))
         return Results(repaired, self.metadata)
 
+    def check_sizes_on_region(self, region, desired_sizes):
+        return self.check_sizes_on_axes(region.axes_by_key, desired_sizes)
+
+    def check_sizes_on_axes(self, axes_by_key, desired_sizes):
+        '''Checks that every size household is present at all combination of parameter values over the specified axes.
+
+        Returns a mapping of combinations of parameters values that are missing sizes ---> sizes that are missing at that combination.'''
+        key_names = self.df.index.names[:2]
+        missing = {}
+        desired_sizes = set(desired_sizes)
+        for x in axes_by_key[key_names[0]]:
+            x = float(f'{x:.3f}')
+            for y in axes_by_key[key_names[1]]:
+                y = float(f'{y:.3f}')
+                for z in axes_by_key[key_names[2]]:
+                    z = float(f'{z:.3f}')
+                    try:
+                        slc = self.df.loc[x,y,z]
+                        present_sizes = np.unique(slc.index.get_level_values('size'))
+                    except KeyError:
+                        present_sizes = set()
+                    missing_sizes =  desired_sizes - set(present_sizes)
+                    missing[(x,y,z)] = missing_sizes
+        return missing
+
 class PopulationStructure:
     def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
         assert isinstance(household_sizes, dict)
