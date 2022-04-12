@@ -25,7 +25,7 @@ def compute_frequencies(comparison, grouping):
     #import pdb; pdb.set_trace()
     #frequency_total = len(comparison)
     frequencies_grouped=comparison.groupby(grouping)
-    frequency_totals = frequencies_grouped.size().sum(level='size')
+    frequency_totals = frequencies_grouped.size().groupby('size').sum()
     frequencies = frequencies_grouped.size() / frequency_totals
     frequencies.name = 'freqs'
     hh_size = frequencies.reset_index()['size'].iloc[0]
@@ -54,18 +54,20 @@ def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["tria
     logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
     return logl
 
-def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trial"], household_keys=["size", "infections"]):
+def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trial"], household_keys=["size", "infections"], count_columns_to_prefix=None):
+    counts = counts.reset_index()
+    if count_columns_to_prefix is not None:
+        relabeled = {x:f'{sample_prefix}{x}' for x in count_columns_to_prefix}
+        counts = counts.rename(columns=relabeled, inplace=False)
     log_freqs = np.log(frequencies)
     log_freqs.name = "log freq"
 
-    counts = counts.reset_index()
     log_freqs = log_freqs.reset_index()
     log_freqs["dummy"] = 0.0
     counts["dummy"] = 0.0
     # we make a table of the log frequency values, and then we just have to 'line it up' with the counts and do arithmetic, most of the work is in lining it up
     merged = pd.merge(counts, log_freqs, how='left', on=household_keys+["dummy"])
     #print(merged)
-    #import pdb; pdb.set_trace()
     indexed_merge = merged.set_index([sample_prefix + key for key in parameter_keys] + sample_only_keys + parameter_keys + household_keys)
     indexed_merge["logl"] = indexed_merge["log freq"] * indexed_merge["count"]
 

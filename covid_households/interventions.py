@@ -6,7 +6,7 @@ class Intervention(abc.ABC):
     
     @abc.abstractmethod
     def apply(self, sus, inf, initial_state):
-        """Applies the intervention a population given its initial state.
+        """Applies the intervention to a population given its initial state.
 
         Args:
             sus (np.ndarray): a vector of susceptibilities for individuals in the population.

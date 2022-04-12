@@ -35,7 +35,7 @@ class Model(NamedTuple):
     secondary_infections: bool = True # for debugging / testing
     intervention: Intervention = None
 
-    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False, nice_index=False):
         assert household_beta is not None
         #import pdb; pdb.set_trace()
         if population is None:
@@ -58,8 +58,11 @@ class Model(NamedTuple):
 
         df = pd.concat(dfs)
         if as_counts:
-            df = pd.DataFrame(df.groupby(['size','infections']).size())
+            grouping = ['size','infections']
+            if trials > 1: grouping.append('trial')
+            df = pd.DataFrame(df.groupby(grouping).size())
             df.rename(columns={0:'count'}, inplace=True)
+
         return df
 
     def run_grid(self, sizes, region, progress_path=None):
@@ -82,11 +85,11 @@ class Model(NamedTuple):
                     params[key2] = v2
                     params[key3] = v3
 
-                    defualt_parameters = region.parameter_class(**params).to_normal_inputs()
+                    default_parameters = region.parameter_class(**params).to_normal_inputs()
 
-                    sus_dist = defualt_parameters['sus_dist']
-                    inf_dist = defualt_parameters['inf_dist']
-                    beta = defualt_parameters['household_beta']
+                    sus_dist = default_parameters['sus']
+                    inf_dist = default_parameters['inf']
+                    beta = default_parameters['household_beta']
 
                     point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
 
@@ -267,7 +270,7 @@ class Results(NamedTuple):
             # simultaneously update min,max sizes and also check that every size is present in every slice
             mi = size_mins.loc[s]
             ma = size_maxs.loc[s]
-            size_dict[s] = (mi,ma) if mi != ma else mi
+            size_dict[str(s)] = (int(mi),int(ma)) if mi != ma else mi
         # need to update sizes dictionary based on results
         # need to work out an example where the combined parts don't share all sizes
         return self.__class__(df3, self.metadata._replace(population=size_dict))

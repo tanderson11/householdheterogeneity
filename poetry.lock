@@ -187,6 +187,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "flameprof"
+version = "0.4"
+description = "cProfile flamegraph generator"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "fonttools"
 version = "4.30.0"
 description = "Tools to manipulate font files"
@@ -1061,7 +1069,7 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.10"
-content-hash = "b0c3f3da38f0f49cd4ab61f0b9f58543cbf5e0e5befc2b8ea02e71b667051423"
+content-hash = "f4aed569b6fde4c26978173d4f7ab74a8c1cfa0bb080aef02bc34f55df34dbc3"
 
 [metadata.files]
 appnope = [
@@ -1214,6 +1222,9 @@ entrypoints = [
 executing = [
     {file = "executing-0.8.3-py2.py3-none-any.whl", hash = "sha256:d1eef132db1b83649a3905ca6dd8897f71ac6f8cac79a7e58a1a09cf137546c9"},
     {file = "executing-0.8.3.tar.gz", hash = "sha256:c6554e21c6b060590a6d3be4b82fb78f8f0194d809de5ea7df1c093763311501"},
+]
+flameprof = [
+    {file = "flameprof-0.4.tar.gz", hash = "sha256:dbc86d4190cbbba624f1e0a40f44d9db96138e27534d83c8ef42d420857875a3"},
 ]
 fonttools = [
     {file = "fonttools-4.30.0-py3-none-any.whl", hash = "sha256:6985cc5380c06db07fdc73ade15e6adbd4ce6ff850d7561ca00f97090b4b263d"},
