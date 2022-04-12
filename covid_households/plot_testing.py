@@ -39,14 +39,14 @@ if test == 'test2':
     
     frequency_df = frequency_df[frequency_df.index.get_level_values('size') == 5]['frequency']
     #import pdb; pdb.set_trace()
-    plotting_keys = ["p80", "SAR"]
+    plotting_keys = ["s80", "SAR"]
 
     fancy_plotting.InteractiveFigure(
         plotting_keys,
         figures,
         frequency_df,
-        unspoken_parameters={'s80':0.80},
-        simulation_sample_size=250,
+        unspoken_parameters={'p80':0.30},
+        simulation_sample_size=300,
         simulation_trials=25,
         figsize=(10, 4.5))
 

@@ -63,6 +63,10 @@ class InteractiveFigure:
             nD_sample_df = pd.concat({v: self.sample_df}, names=[k])
         return nD_sample_df
 
+    def solve_likelihood(self, frequency_df, sample_df, keys, **likelihood_kwargs):
+        return likelihood.logl_from_frequencies_and_counts(frequency_df, sample_df, keys, **likelihood_kwargs)
+
+
     def __init__(
             self,
             keys,
@@ -102,9 +106,10 @@ class InteractiveFigure:
             self.trials = 1
         else:
             self.trials = simulation_trials
+
         self.logl_df = None
         if self.is_empirical:
-            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
+            self.logl_df = self.solve_likelihood(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
 
@@ -125,9 +130,9 @@ class InteractiveFigure:
             print("SAMPLE_DF:\n", self.sample_df)
 
             if self.full_sample_df is None:
-                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
+                self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
             else:
-                self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
+                self.logl_df = self.solve_likelihood(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
 
         self.sample_model_dict = {}
 
@@ -261,7 +266,7 @@ class InteractiveFigure:
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
         self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=(self.trials == 1))
         if self.full_sample_df is None:
-            self.logl_df = likelihood.logl_from_frequencies_and_counts(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
+            self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points[0] = self.baseline_point
@@ -328,7 +333,7 @@ def subfigure_factory(plot_type, ax, interactive):
         kwargs = {}
         if '2D slice' in plot_type:
             full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
-            logl_df = likelihood.logl_from_frequencies_and_counts(
+            logl_df = interacive.solve_likelihood(
                 interactive.nD_frequency_df,
                 interactive.get_nD_sample_df(),
                 full_keys,
