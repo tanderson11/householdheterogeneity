@@ -1,6 +1,23 @@
 import numpy as np
 import pandas as pd
 
+def confidence_mask_from_logl(logl_df, percentiles=(0.95)):
+    normalized_probability = normalize_probability(logl_df)
+    return find_confidence_mask(normalized_probability, percentiles)
+
+def normalize_probability(df):
+    prob_space = np.exp(df.sort_values(ascending=False)-df.max())
+    normalized_probability = prob_space/prob_space.sum()
+    print(normalized_probability.sum())
+    return normalized_probability
+
+def find_confidence_mask(normalized_probability, percentiles=(0.95)):
+    confidence_masks = []
+    for p in percentiles:
+        confidence_masks.append((normalized_probability.cumsum() < p).astype('int32'))
+    confidence_mask = sum(confidence_masks)
+    return confidence_mask
+
 def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trial"], household_keys=["size", "infections"]):
     #counts = empirical.groupby(keys + sample_only_keys + household_keys)["model"].count()
     counts = empirical.groupby(parameter_keys + sample_only_keys + household_keys).size()

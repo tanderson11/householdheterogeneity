@@ -751,22 +751,6 @@ class Heatmap(OnSeabornAxes):
         self.draw_patches()
 
 class ConfidenceHeatmap(Heatmap):
-    @classmethod
-    def normalize_probability(cls, df):
-        prob_space = np.exp(df.sort_values(ascending=False)-df.max())
-        normalized_probability = prob_space/prob_space.sum()
-        print(normalized_probability.sum())
-        return normalized_probability
-
-    @classmethod
-    def find_confidence_mask(cls, df, percentiles=(0.95)):
-        normalized_probability = cls.normalize_probability(df)
-        confidence_masks = []
-        for p in percentiles:
-            confidence_masks.append((normalized_probability.cumsum() < p).astype('int32'))
-        confidence_mask = sum(confidence_masks)
-        return confidence_mask
-
     def draw(self, interactive):
         Subfigure.draw(self, interactive)
         cmap = sns.color_palette("Greens", self.n_masks)
@@ -800,12 +784,12 @@ class InOrOutConfidenceIntervalHeatmap(ConfidenceHeatmap):
         #self.df = self.normalize_probability(self.df.unstack()).unstack().T
         self.n_masks = 1
         self.labels = ["95%"]
-        self.df = self.find_confidence_mask(self.df.unstack()).unstack().T
+        self.df = likelihood.confidence_mask_from_logl(self.df.unstack()).unstack().T
         #import pdb; pdb.set_trace()
 
 class ManyMasksConfidenceHeatmap(ConfidenceHeatmap):
     def __init__(self, ax, keys, df, title, scatter_stars=True):
         super().__init__(ax, keys, df, title, scatter_stars=scatter_stars)
-        self.df = self.find_confidence_mask(self.df.unstack(), percentiles=(0.99, 0.95, 0.90, 0.85)).unstack().T
+        self.df = likelihood.confidence_mask_from_logl(self.df.unstack(), percentiles=(0.99, 0.95, 0.90, 0.85)).unstack().T
         self.n_masks = 4
         self.labels = reversed(["85%", "90%", "95%", "99%"])
