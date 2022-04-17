@@ -370,7 +370,7 @@ class Results(NamedTuple):
         '''Checks that every size household is present at all combination of parameter values over the specified axes.
 
         Returns a mapping of combinations of parameters values that are missing sizes ---> sizes that are missing at that combination.'''
-        key_names = self.df.index.names[:2]
+        key_names = self.df.index.names[:3]
         missing = {}
         desired_sizes = set(desired_sizes)
         for x in axes_by_key[key_names[0]]:
@@ -381,11 +381,12 @@ class Results(NamedTuple):
                     z = float(f'{z:.3f}')
                     try:
                         slc = self.df.loc[x,y,z]
-                        present_sizes = np.unique(slc.index.get_level_values('size'))
+                        present_sizes = set(np.unique(slc.index.get_level_values('size')))
                     except KeyError:
                         present_sizes = set()
-                    missing_sizes =  desired_sizes - set(present_sizes)
-                    missing[(x,y,z)] = missing_sizes
+                    if present_sizes != desired_sizes:
+                        missing_sizes =  desired_sizes - set(present_sizes)
+                        missing[(x,y,z)] = missing_sizes
         return missing
 
 class PopulationStructure:
