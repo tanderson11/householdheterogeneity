@@ -1032,6 +1032,14 @@ python-versions = ">=3.7"
 test = ["pytest"]
 
 [[package]]
+name = "tricubic"
+version = "1.0.2"
+description = "A tricubic interpolation module for python."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "typing-extensions"
 version = "4.1.1"
 description = "Backported and Experimental Type Hints for Python 3.6+"
@@ -1069,7 +1077,7 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.10"
-content-hash = "f4aed569b6fde4c26978173d4f7ab74a8c1cfa0bb080aef02bc34f55df34dbc3"
+content-hash = "0d6fcd21ad97a19fc36cb0b1cf30f1a6ba14b8a1b5a110f8d1a41fbc2c3ecc8c"
 
 [metadata.files]
 appnope = [
@@ -1857,6 +1865,9 @@ tornado = [
 traitlets = [
     {file = "traitlets-5.1.1-py3-none-any.whl", hash = "sha256:2d313cc50a42cd6c277e7d7dc8d4d7fedd06a2c215f78766ae7b1a66277e0033"},
     {file = "traitlets-5.1.1.tar.gz", hash = "sha256:059f456c5a7c1c82b98c2e8c799f39c9b8128f6d0d46941ee118daace9eb70c7"},
+]
+tricubic = [
+    {file = "tricubic-1.0.2.tar.gz", hash = "sha256:629072f2fb304f8a7344f92b706ede896c34fa30f793323ad4f352f3d935fbf0"},
 ]
 typing-extensions = [
     {file = "typing_extensions-4.1.1-py3-none-any.whl", hash = "sha256:21c85e0fe4b9a155d0799430b0ad741cdce7e359660ccbd8b530613e8df88ce2"},

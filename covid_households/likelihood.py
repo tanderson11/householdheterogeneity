@@ -1,22 +1,46 @@
 import numpy as np
 import pandas as pd
+import scipy.interpolate
 
-def confidence_mask_from_logl(logl_df, percentiles=(0.95)):
+def interpolate_likelihood(logl_df):
+    interp = scipy.interpolate.LinearNDInterpolator(points=logl_df.index.to_frame().values, values=logl_df.values)
+    return interp
+
+def confidence_mask_from_logl(logl_df, percentiles=(0.95,), **kwargs):
     normalized_probability = normalize_probability(logl_df)
-    return find_confidence_mask(normalized_probability, percentiles)
+    return find_confidence_mask(normalized_probability, percentiles, **kwargs)
 
-def normalize_probability(df):
-    prob_space = np.exp(df.sort_values(ascending=False)-df.max())
+def normalize_probability(logl_df):
+    prob_space = np.exp(logl_df.sort_values(ascending=False)-logl_df.max())
     normalized_probability = prob_space/prob_space.sum()
-    print(normalized_probability.sum())
+    #print(normalized_probability.sum())
     return normalized_probability
 
-def find_confidence_mask(normalized_probability, percentiles=(0.95)):
+def find_confidence_mask(normalized_probability, percentiles=(0.95,)):
     confidence_masks = []
     for p in percentiles:
-        confidence_masks.append((normalized_probability.cumsum() < p).astype('int32'))
+        confidence_masks.append((normalized_probability.cumsum() <= p).astype('int32'))
     confidence_mask = sum(confidence_masks)
+    if len(percentiles) == 1:
+        return confidence_mask.astype('bool')
     return confidence_mask
+
+def confidence_interval_from_confidence_mask(confidence_mask, key, include_endpoints=True):
+    all_values = np.unique(confidence_mask.index.get_level_values(key))
+    value_set = np.unique(confidence_mask[confidence_mask].index.get_level_values(key))
+    min = value_set.min()
+    max = value_set.max()
+
+    if include_endpoints:
+        values_above = all_values[np.where(all_values > max)]
+        if len(values_above) > 0:
+            max = values_above.min()
+
+        values_below = all_values[np.where(all_values < min)]
+        if len(values_below) > 0:
+            min = values_below.max()
+
+    return (min, max)
 
 def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trial"], household_keys=["size", "infections"]):
     #counts = empirical.groupby(keys + sample_only_keys + household_keys)["model"].count()
@@ -71,29 +95,29 @@ def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["tria
     logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
     return logl
 
-def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trial"], household_keys=["size", "infections"], count_columns_to_prefix=None):
-    counts = counts.reset_index()
-    if count_columns_to_prefix is not None:
-        relabeled = {x:f'{sample_prefix}{x}' for x in count_columns_to_prefix}
-        counts = counts.rename(columns=relabeled, inplace=False)
-    log_freqs = np.log(frequencies)
-    log_freqs.name = "log freq"
+def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, household_keys=["size", "infections"]):
+    # First, verify the counts come from a single point in parameter space
+    parameter_levels = counts.index.droplevel(['trial', 'size', 'infections'])
+    # for other levels, check that there is only one unique value in the index
+    for level_name in parameter_levels.names:
+        assert len(np.unique(parameter_levels.get_level_values(level_name))) == 1, 'Fast logl calculation requires that the counts come from a single point in parameter space.'
 
-    log_freqs = log_freqs.reset_index()
-    log_freqs["dummy"] = 0.0
-    counts["dummy"] = 0.0
-    # we make a table of the log frequency values, and then we just have to 'line it up' with the counts and do arithmetic, most of the work is in lining it up
-    merged = pd.merge(counts, log_freqs, how='left', on=household_keys+["dummy"])
-    #print(merged)
-    indexed_merge = merged.set_index([sample_prefix + key for key in parameter_keys] + sample_only_keys + parameter_keys + household_keys)
-    indexed_merge["logl"] = indexed_merge["log freq"] * indexed_merge["count"]
+    frequencies_g = (np.log(frequencies)).groupby(household_keys)
+    counts_g = counts.groupby(household_keys)
 
-    if (indexed_merge.index.to_frame().isna()).any().any():
-        raise ValueError("NaN in merged index suggesting that not all infection counts were present. Try running results.repair_mising_counts")
+    logl_parts = []
+    # we group by size and # of infections,
+    # then the observed count can be multiplied against all the frequencies (even at different parameter valeus)
+    for k,g in counts_g:
+        count_group = g
+        count_group.index = (count_group.index.get_level_values('trial'))
+        freq_group = frequencies_g.get_group(k)
+        # we need both frames to have have the same name so that the pandas `dot` will work
+        freq_group.name = 'x'
+        count_group.name = 'x'
+        # product of the count by every different frequency, for each trial (trials end up in separate columns)
+        x = freq_group.to_frame().dot(count_group.to_frame().transpose())
+        logl_parts.append(x)
 
-    try:
-        logls = indexed_merge.groupby(["sample " + key for key in parameter_keys] + sample_only_keys + parameter_keys)["logl"]
-    except ValueError:
-        logls = indexed_merge['logl']
-
-    return logls.sum() # summing over household keys (because they are excluded)
+    logl = pd.concat(logl_parts).groupby(parameter_keys).sum().stack()
+    return logl
