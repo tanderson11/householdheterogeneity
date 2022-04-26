@@ -95,7 +95,19 @@ def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["tria
     logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
     return logl
 
-def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, household_keys=["size", "infections"]):
+def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_prefix='sample ', sample_only_keys=["trial"], household_keys=["size", "infections"], count_columns_to_prefix=None):
+    if count_columns_to_prefix is not None:
+        relabeled = {x:f'{sample_prefix}{x}' for x in count_columns_to_prefix}
+        counts = counts.index.rename(columns=relabeled, inplace=False)
+
+    logl = fast_logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, household_keys=household_keys)
+    # add back in the keys from the counts dataframe to be compatible with certain figures
+    # TK
+    return logl
+
+def fast_logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, household_keys=["size", "infections"]):
+    if 'trial' not in counts.index.names:
+        counts = pd.concat({0: counts}, names=['trial'])
     # First, verify the counts come from a single point in parameter space
     parameter_levels = counts.index.droplevel(['trial', 'size', 'infections'])
     # for other levels, check that there is only one unique value in the index
