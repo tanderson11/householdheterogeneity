@@ -109,7 +109,7 @@ class InteractiveFigure:
 
         self.logl_df = None
         if self.is_empirical:
-            self.logl_df = self.solve_likelihood(self.frequency_df, full_sample_df, keys, count_columns_to_prefix=self.keys)
+            self.logl_df = self.solve_likelihood(self.frequency_df, full_sample_df, keys)
             assert baseline_values is None, "baseline specified but empirical dataset selected"
             # if empirical, we want to set the baseline to be at the point of maximum likelihood so we can display boostrapped points:
 
@@ -126,13 +126,13 @@ class InteractiveFigure:
                 baseline_coordinates = {self.key1:self.reset_freqs[self.key1].iloc[0], self.key2:self.reset_freqs[self.key2].iloc[0]}
             else:
                 baseline_coordinates = {self.key1:baseline_values[0], self.key2:baseline_values[1]}
-            self.sample_df = self.baseline_at_point(baseline_coordinates, one_trial=(self.trials == 1))
+            self.sample_df = self.baseline_at_point(baseline_coordinates)
             print("SAMPLE_DF:\n", self.sample_df)
 
             if self.full_sample_df is None:
-                self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
+                self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, keys)
             else:
-                self.logl_df = self.solve_likelihood(self.frequency_df, self.full_sample_df, keys, sample_only_keys=['trial'], count_columns_to_prefix=self.keys)
+                self.logl_df = self.solve_likelihood(self.frequency_df, self.full_sample_df, keys)
 
         self.sample_model_dict = {}
 
@@ -150,10 +150,11 @@ class InteractiveFigure:
             #self.available_colors = [cmap(x) for x in np.linspace(0.4, 0.9, 2)]
 
         self.subplots = subplots
+        #import pdb; pdb.set_trace()
         self.make_figure()
 
     @staticmethod
-    def simulate_at_point(keys, sizes, unspoken_parameters=None, model=recipes.Model()):
+    def simulate_at_point(keys, sizes, trials, unspoken_parameters=None, model=recipes.Model()):
         # keys = dictionary {key: value}
         beta = None
         hsar = keys.get('hsar', None)
@@ -163,7 +164,7 @@ class InteractiveFigure:
         parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
         params = parameterization(**keys)
 
-        df = model.run_trials(**params.to_normal_inputs(), trials=25, sizes=sizes, as_counts=True)
+        df = model.run_trials(**params.to_normal_inputs(), trials=trials, sizes=sizes, as_counts=True)
         for k,v in keys.items():
             df[k] = np.float("{0:.2f}".format(v))
         #import pdb; pdb.set_trace()
@@ -177,14 +178,14 @@ class InteractiveFigure:
             beta: float
         return SimulationResult(df, beta)
 
-    def baseline_at_point(self, baseline_coordinates, one_trial=False):
+    def baseline_at_point(self, baseline_coordinates):
         if self.full_sample_df is None:
             # in this case we have to simulate
             unique_sizes = self.frequency_df.reset_index()['size'].unique()
             assert len(unique_sizes) == 1
             sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
-            baseline_df = self.simulate_at_point(keys, sizes, self.unspoken_parameters).df
+            baseline_df = self.simulate_at_point(keys, sizes, self.trials, self.unspoken_parameters).df
         else:
             baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
 
@@ -192,9 +193,6 @@ class InteractiveFigure:
             print(baseline_df["trial"])
         except KeyError:
             baseline_df["trial"] = 0
-
-        if one_trial:
-            baseline_df = baseline_df[baseline_df["trial"] == 0] # for concreteness, use only trial 1
 
         return baseline_df
 
@@ -264,9 +262,9 @@ class InteractiveFigure:
     def reset_baseline(self, parameter_coordinates):
         print("Resetting the baseline point")
         print(parameter_coordinates[self.key1], parameter_coordinates[self.key2])
-        self.sample_df = self.baseline_at_point(parameter_coordinates, one_trial=(self.trials == 1))
+        self.sample_df = self.baseline_at_point(parameter_coordinates)
         if self.full_sample_df is None:
-            self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, [self.key1, self.key2], count_columns_to_prefix=self.keys)
+            self.logl_df = self.solve_likelihood(self.frequency_df, self.sample_df, [self.key1, self.key2])
         self.baseline_point = SelectedPoint(parameter_coordinates, self.baseline_color, is_baseline=True)
 
         self.selected_points[0] = self.baseline_point
@@ -294,11 +292,8 @@ class InteractiveFigure:
 def subfigure_factory(plot_type, ax, interactive):
     keys = (interactive.key1, interactive.key2)
     trial = 0
-    logl_df = interactive.logl_df.loc[
-        interactive.baseline_point.parameter_coordinates[interactive.key1],
-        interactive.baseline_point.parameter_coordinates[interactive.key2],
-        trial
-    ] # pulling out the coordinates of the baseline and the trial
+    #import pdb; pdb.set_trace()
+    logl_df = interactive.logl_df.loc[trial]
 
     if plot_type == 'logl heatmap':
         # new code with the full logl df
@@ -333,12 +328,10 @@ def subfigure_factory(plot_type, ax, interactive):
         kwargs = {}
         if '2D slice' in plot_type:
             full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
-            logl_df = interacive.solve_likelihood(
+            logl_df = interactive.solve_likelihood(
                 interactive.nD_frequency_df,
                 interactive.get_nD_sample_df(),
                 full_keys,
-                sample_only_keys=['trial'],
-                count_columns_to_prefix=full_keys,
             )
             prob_df = utilities.normalize_logl_as_probability(logl_df)
             max_prob = prob_df.max()
@@ -349,11 +342,7 @@ def subfigure_factory(plot_type, ax, interactive):
             sample_dropped_parameters = {'sample ' + k: v for k,v in dropped_parameters.items()}
             sample_dropped_parameters.update(dropped_parameters)
             prob_df = interactive.restrict_to_dimensions_of_interest(prob_df, sample_dropped_parameters)
-            prob_df = prob_df.loc[
-                interactive.baseline_point.parameter_coordinates[interactive.key1],
-                interactive.baseline_point.parameter_coordinates[interactive.key2],
-                trial
-            ]
+            prob_df = prob_df.loc[trial]
             kwargs.update({'vmin':0.0, 'vmax':max_prob})
             #import pdb; pdb.set_trace()
         elif '2D only' in plot_type:
@@ -557,7 +546,7 @@ class OnAxesSubfigure(Subfigure):
         y_mins = []
         colors = []
         #import pdb; pdb.set_trace()
-        for trial,_logl_df in interactive.logl_df.loc[key1_value, key2_value].groupby("trial"): # go to the baseline coordinates, then look at all the trials
+        for trial,_logl_df in interactive.logl_df.groupby("trial"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width

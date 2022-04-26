@@ -46,8 +46,8 @@ if test == 'test2':
         figures,
         frequency_df,
         unspoken_parameters={'p80':0.30},
-        simulation_sample_size=300,
-        simulation_trials=25,
+        simulation_sample_size=100,
+        simulation_trials=1,
         figsize=(10, 4.5))
 
 if test == 'test3':
