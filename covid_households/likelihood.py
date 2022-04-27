@@ -84,7 +84,7 @@ def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, househ
     """    
     # Add trial to the right spot in the index if it's missing / exists only as a column
     if 'trial' not in counts.index.names:
-        if 'trial' in counts.columns:
+        if isinstance(counts, pd.DataFrame) and 'trial' in counts.columns:
             old_names = counts.index.names
             counts = counts.reset_index()
             counts = counts.set_index(old_names + ['trial']).squeeze()
