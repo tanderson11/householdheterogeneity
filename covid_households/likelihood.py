@@ -2,10 +2,6 @@ import numpy as np
 import pandas as pd
 import scipy.interpolate
 
-def interpolate_likelihood(logl_df):
-    interp = scipy.interpolate.LinearNDInterpolator(points=logl_df.index.to_frame().values, values=logl_df.values)
-    return interp
-
 def confidence_mask_from_logl(logl_df, percentiles=(0.95,), **kwargs):
     normalized_probability = normalize_probability(logl_df)
     return find_confidence_mask(normalized_probability, percentiles, **kwargs)
@@ -50,18 +46,6 @@ def counts_from_empirical(empirical, parameter_keys, sample_only_keys=["trial"],
     counts.name = "count"
     return counts
 
-def frequencies_from_synthetic(synthetic, parameter_keys, household_keys=["size", "infections"]):
-    if len(parameter_keys) > 0:
-        comparison_grouped = synthetic.groupby(parameter_keys) # groups by the axes of the plot
-        frequencies = comparison_grouped.apply(lambda g: compute_frequencies(g, household_keys)) # precompute the frequencies at each point because this is the expensive step
-    else:
-        frequencies = compute_frequencies(synthetic, household_keys)
-
-    if not isinstance(frequencies, pd.core.series.Series): # if there are multiple sizes, the result comes out in a series, if not it comes out in a dataframe that needs the size to be stacked back in as a column
-        frequencies = frequencies.stack(level=[0,1])
-
-    return frequencies
-
 def compute_frequencies(comparison, grouping):
     #import pdb; pdb.set_trace()
     #frequency_total = len(comparison)
@@ -86,16 +70,18 @@ def compute_frequencies(comparison, grouping):
         frequencies = frequencies[~duplicated]
     return frequencies
 
-def logl_from_data(synthetic, empirical, parameter_keys, sample_only_keys=["trial"], household_keys=["size", "infections"], frequency_df=None):
-    if frequency_df is not None:
-        frequencies = frequency_df
-    else:
-        frequencies = frequencies_from_synthetic(synthetic, parameter_keys, household_keys=household_keys)
-    counts = counts_from_empirical(empirical, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
-    logl = logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, sample_only_keys=sample_only_keys, household_keys=household_keys)
-    return logl
-
 def logl_from_frequencies_and_counts(frequencies, counts, parameter_keys, household_keys=["size", "infections"]):
+    """This function calculates the loglikehood of observing the infections in `counts` given the probability in `frequencies` of different counts occuring.
+
+    Args:
+        frequencies (pandas.Series): A series of frequencies/probabilities of occurence of infections indexed by all relevant features that distinguish two households (like size and # of infections) as well as model parameters.
+        counts (pandas.Series): The observed counts of # of households with a certain number of infections (index column) and total size (index column). Should have a 'trial' column if it represents many trials.
+        parameter_keys (list): The names of any index columns of frequencies that are model parameters distinguishing households.
+        household_keys (list, optional): The features that distinguish households under the model. Defaults to ["size", "infections"].
+
+    Returns:
+        pandas.Series: the loglikelihood of observing the data under the probabilities specified in frequencies.
+    """    
     # Add trial to the right spot in the index if it's missing / exists only as a column
     if 'trial' not in counts.index.names:
         if 'trial' in counts.columns:
