@@ -15,7 +15,12 @@ def normalize_probability(logl_df):
 def find_confidence_mask(normalized_probability, percentiles=(0.95,)):
     confidence_masks = []
     for p in percentiles:
-        confidence_masks.append((normalized_probability.cumsum() <= p).astype('int32'))
+        # until we reach the desired total probability inside the mask, we keep adding cells to fill up the confidence interval (n dimensional)
+        mask = (normalized_probability.cumsum() <= p).astype('int32')
+        if not mask.any():
+            # if nothing is 'flipped on' in the mask, it's because all the probability is concentrated in one point
+            mask[normalized_probability.idxmax()] = True
+        confidence_masks.append(mask)
     confidence_mask = sum(confidence_masks)
     if len(percentiles) == 1:
         return confidence_mask.astype('bool')
@@ -24,6 +29,10 @@ def find_confidence_mask(normalized_probability, percentiles=(0.95,)):
 def confidence_interval_from_confidence_mask(confidence_mask, key, include_endpoints=True):
     all_values = np.unique(confidence_mask.index.get_level_values(key))
     value_set = np.unique(confidence_mask[confidence_mask].index.get_level_values(key))
+
+    if len(value_set) == 0:
+        import pdb; pdb.set_trace()
+
     min = value_set.min()
     max = value_set.max()
 
