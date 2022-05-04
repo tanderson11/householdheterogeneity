@@ -27,6 +27,7 @@ if test == 'test1':
 
 if test == 'test2':
     figures = np.array(["2D only probability contour plot", "infection histograms"]).reshape((1,2))
+    figures = np.array(["2D only probability contour plot", "2D only probability contour plot"]).reshape((1,2))
 
     if False:
         results = recipes.Results.load("/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8/full_results/")
@@ -37,7 +38,7 @@ if test == 'test2':
         results.find_frequencies()
         frequency_df = results.df
     
-    frequency_df = frequency_df[frequency_df.index.get_level_values('size') == 5]['frequency']
+    frequency_df = frequency_df[(frequency_df.index.get_level_values('size') == 5) | (frequency_df.index.get_level_values('size') == 6)]['frequency']
     #import pdb; pdb.set_trace()
     plotting_keys = ["s80", "SAR"]
 
@@ -46,7 +47,7 @@ if test == 'test2':
         figures,
         frequency_df,
         unspoken_parameters={'p80':0.30},
-        simulation_sample_size=100,
+        simulation_population={5:250, 6:200},
         simulation_trials=1,
         figsize=(10, 4.5))
 

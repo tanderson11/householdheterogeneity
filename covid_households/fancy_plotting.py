@@ -76,7 +76,7 @@ class InteractiveFigure:
             is_empirical=False,
             baseline_values=None,
             empirical_path=False,
-            simulation_sample_size=100,
+            simulation_population=None,
             simulation_trials=1,
             unspoken_parameters={},
             patch_palette='sequential',
@@ -101,7 +101,7 @@ class InteractiveFigure:
         self.key1, self.key2 = keys
 
         self.full_sample_df = full_sample_df
-        self.simulation_sample_size = simulation_sample_size
+        self.simulation_population = simulation_population
         if is_empirical:
             self.trials = 1
         else:
@@ -181,11 +181,8 @@ class InteractiveFigure:
     def baseline_at_point(self, baseline_coordinates):
         if self.full_sample_df is None:
             # in this case we have to simulate
-            unique_sizes = self.frequency_df.reset_index()['size'].unique()
-            assert len(unique_sizes) == 1
-            sizes = {unique_sizes[0]: self.simulation_sample_size}
             keys = {**self.unspoken_parameters, **baseline_coordinates}
-            baseline_df = self.simulate_at_point(keys, sizes, self.trials, self.unspoken_parameters).df
+            baseline_df = self.simulate_at_point(keys, self.simulation_population, self.trials, self.unspoken_parameters).df
         else:
             baseline_df = self.full_sample_df[(self.full_sample_df[self.key1] == baseline_coordinates[self.key1]) & (self.full_sample_df[self.key2] == baseline_coordinates[self.key2])]
 
@@ -253,7 +250,7 @@ class InteractiveFigure:
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
 
-        slide_name = f"slide-ss{self.simulation_sample_size}"
+        slide_name = f"slide-ss{self.simulation_population}"
         for k,v in self.baseline_point.parameter_coordinates.items():
             slide_name += f'-{k[0]}{v}'
         #plt.savefig(f'mass_produced/{slide_name}.png', dpi=400),# bbox_inches='tight')
