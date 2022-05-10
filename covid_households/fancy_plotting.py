@@ -336,9 +336,10 @@ def subfigure_factory(plot_type, ax, interactive):
 
             # now we have to reduce the dimensions again to the ones that are appropriate for plotting
             dropped_parameters = interactive.unspoken_parameters
-            sample_dropped_parameters = {'sample ' + k: v for k,v in dropped_parameters.items()}
-            sample_dropped_parameters.update(dropped_parameters)
-            prob_df = interactive.restrict_to_dimensions_of_interest(prob_df, sample_dropped_parameters)
+            #sample_dropped_parameters = {'sample ' + k: v for k,v in dropped_parameters.items()}
+            #sample_dropped_parameters.update(dropped_parameters)
+            #import pdb; pdb.set_trace()
+            prob_df = interactive.restrict_to_dimensions_of_interest(prob_df, dropped_parameters)
             prob_df = prob_df.loc[trial]
             kwargs.update({'vmin':0.0, 'vmax':max_prob})
             #import pdb; pdb.set_trace()

@@ -27,7 +27,7 @@ if test == 'test1':
 
 if test == 'test2':
     figures = np.array(["2D only probability contour plot", "infection histograms"]).reshape((1,2))
-    figures = np.array(["2D only probability contour plot", "2D only probability contour plot"]).reshape((1,2))
+    figures = np.array(["2D only probability contour plot", "2D slice probability contour plot"]).reshape((1,2))
 
     if False:
         results = recipes.Results.load("/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8/full_results/")
@@ -46,7 +46,7 @@ if test == 'test2':
         plotting_keys,
         figures,
         frequency_df,
-        unspoken_parameters={'p80':0.30},
+        unspoken_parameters={'p80':0.80},
         simulation_population={5:250, 6:200},
         simulation_trials=1,
         figsize=(10, 4.5))
