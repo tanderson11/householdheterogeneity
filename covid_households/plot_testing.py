@@ -28,6 +28,7 @@ if test == 'test1':
 if test == 'test2':
     figures = np.array(["2D only probability contour plot", "infection histograms"]).reshape((1,2))
     figures = np.array(["2D only probability contour plot", "2D slice probability contour plot"]).reshape((1,2))
+    figures = np.array(["2D only probability contour plot", "3D slice free parameter probability contour plot"]).reshape((1,2))
 
     if False:
         results = recipes.Results.load("/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8/full_results/")
@@ -38,16 +39,19 @@ if test == 'test2':
         results.find_frequencies()
         frequency_df = results.df
     
-    frequency_df = frequency_df[(frequency_df.index.get_level_values('size') == 5) | (frequency_df.index.get_level_values('size') == 6)]['frequency']
+    #frequency_df = frequency_df[(frequency_df.index.get_level_values('size') == 4) | (frequency_df.index.get_level_values('size') == 8)]
+    frequency_df = frequency_df['frequency']
     #import pdb; pdb.set_trace()
-    plotting_keys = ["s80", "SAR"]
+    #plotting_keys = ["p80", "SAR"]
+    plotting_keys = ["p80", "SAR"]
 
     fancy_plotting.InteractiveFigure(
         plotting_keys,
         figures,
         frequency_df,
-        unspoken_parameters={'p80':0.80},
-        simulation_population={5:250, 6:200},
+        unspoken_parameters={'s80':0.8},
+        simulation_population={3: 2612, 4: 744, 5: 595, 6: 67, 7: 57, 8: 50},
+        #simulation_population={4:2000, 8:1000},
         simulation_trials=1,
         figsize=(10, 4.5))
 

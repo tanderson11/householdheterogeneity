@@ -59,8 +59,7 @@ def objective_function_crafter(p80):
     '''
     Takes in the desired p80
 
-    Returns a function that accepts a variance
-    and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
+    Returns a function that accepts a variance and returns the difference between the actual number of secondary infections caused by p80 fraction of individuals and the expected number (80%)
     '''
     assert p80 <= 0.78, "fitting is not well behaved for p80 and/or s80 > 0.78"
     def objective_function(variance):
@@ -68,12 +67,13 @@ def objective_function_crafter(p80):
         mu = -1/2 * np.log(variance + 1)
         rv = stats.lognorm(s=sigma, scale=np.exp(mu))
 
-        # we want x80 with F(x80) = p80
+        # we want x80 with F(x80) = 1 - p80
         x80_defining_function = lambda x: np.abs(1 - p80 - rv.cdf(x))
         x80 = scipy.optimize.fsolve(x80_defining_function, 0.5)[0]
 
         integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
         #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
+        # ... in other words: 20% of spread from the bottom (1 - p80)%, 80% from the top p80%
         return np.abs(0.8 - 1.0 + integral)
     return objective_function
 

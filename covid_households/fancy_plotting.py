@@ -343,6 +343,23 @@ def subfigure_factory(plot_type, ax, interactive):
             prob_df = prob_df.loc[trial]
             kwargs.update({'vmin':0.0, 'vmax':max_prob})
             #import pdb; pdb.set_trace()
+        elif '3D slice free parameter' in plot_type:
+            full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
+            logl_df = interactive.solve_likelihood(
+                interactive.nD_frequency_df,
+                interactive.get_nD_sample_df(),
+                full_keys,
+            )
+            # now we sum over the free parameter at each point with the other parameters fixed
+            # so that the 2D plot will capture the uncertainties caused by lack of clarity about the free parameter
+            prob_df = utilities.normalize_logl_as_probability(logl_df)
+            prob_df = prob_df.groupby(['trial'] + interactive.keys).sum()
+            prob_df = prob_df / prob_df.sum()
+            prob_df = prob_df.loc[trial]
+            max_prob = prob_df.max()
+            print(f"Global probability maximum: {max_prob}")
+
+            kwargs.update({'vmin':0.0, 'vmax':max_prob})
         elif '2D only' in plot_type:
             prob_df = utilities.normalize_logl_as_probability(logl_df)
             #import pdb; pdb.set_trace()
@@ -619,7 +636,7 @@ class OnMatplotlibAxes(OnAxesSubfigure):
         # refactor this so it calls a draw_patch method of the subfigure
 
         if point.is_baseline:
-            patch = self.ax.add_patch(patches.Ellipse((x,y), 0.5*self.patches_x_scale, 0.5*self.patches_y_scale, fill=False, edgecolor=point.color, lw=2))
+            patch = self.ax.add_patch(patches.Ellipse((x,y), 0.5*self.patches_x_scale, 0.5*self.patches_y_scale, fill=False, edgecolor=point.color, lw=1))
             #patch = self.ax.add_patch(patches.Ellipse((x+0.15*self.patches_x_scale,y+0.15*self.patches_y_scale), 0.2*self.patches_x_scale, 0.2*self.patches_y_scale, fill=False, edgecolor=point.color, lw=1))
             #patch = self.ax.add_patch(patches.Circle((x+0.05*self.patches_x_scale,y+0.05*self.patches_y_scale), 0.05*self.patches_x_scale,fill=True, edgecolor=point.color, lw=2))
         else:
