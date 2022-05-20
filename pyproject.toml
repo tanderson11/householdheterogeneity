@@ -22,6 +22,7 @@ pyarrow = "^7.0.0"
 curlybrace = {git = "https://github.com/tanderson11/curlybrace.git"}
 flameprof = "^0.4"
 tricubic = "^1.0.2"
+openpyxl = "^3.0.10"
 
 [tool.poetry.dev-dependencies]
 jupyter = "^1.0.0"
