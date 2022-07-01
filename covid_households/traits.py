@@ -129,8 +129,12 @@ class LognormalTrait(Trait):
         self.mu = mu
         self.sigma = sigma
 
-        self.mean = mean
-        self.variance = variance
+        if mean is None:
+            self.mean = np.exp(self.mu + self.sigma**2/2)
+            self.variance = (np.exp(self.sigma**2) - 1) * (np.exp(2*self.mu+self.sigma**2))
+        else:
+            self.mean = mean
+            self.variance = variance
 
         self.distribution = scipy.stats.lognorm(s=sigma, scale=np.exp(mu))
 
@@ -144,7 +148,7 @@ class LognormalTrait(Trait):
 
     def as_column(self):
         '''For when we log this trait in a pandas dataframe.'''
-        assert(self.mean == 1)
+        assert np.isclose(self.mean, 1), self.mean
         return ('variance', self.variance)
 
     @classmethod

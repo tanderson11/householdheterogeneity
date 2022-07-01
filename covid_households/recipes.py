@@ -70,7 +70,7 @@ class Model(NamedTuple):
 
         return df
 
-    def run_grid(self, sizes, region, progress_path=None):
+    def run_grid(self, sizes, region, progress_path=None, use_crib=False):
         axis_data = list(region.axes_by_name.items())
         key1, axis1 = axis_data[0]
         key2, axis2 = axis_data[1]
@@ -90,7 +90,7 @@ class Model(NamedTuple):
                     params[key2] = v2
                     params[key3] = v3
 
-                    default_parameters = region.parameter_class(**params).to_normal_inputs()
+                    default_parameters = region.parameter_class(**params).to_normal_inputs(use_crib=use_crib)
 
                     sus_dist = default_parameters['sus']
                     inf_dist = default_parameters['inf']
