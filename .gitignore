@@ -5,6 +5,9 @@
 # VS code
 .vscode/
 
+# spreadsheets
+*.xlsx
+
 # Private git token
 git_token.py
 
