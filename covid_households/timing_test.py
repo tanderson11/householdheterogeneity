@@ -1,5 +1,4 @@
 import recipes
-import traits
 import utilities
 import numpy as np
 import os

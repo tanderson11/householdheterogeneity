@@ -3,6 +3,7 @@ from settings import STATE
 import traits
 import pandas as pd
 import abc
+from pathlib import Path
 
 ### Probability math
 def normalize_logl_as_probability(logl_df):
@@ -141,7 +142,7 @@ class Lognormal_Variance_Variance_Beta_Inputs(ModelInputs):
         self.inf_variance = inf_variance
         self.household_beta = household_beta
 
-    def to_normal_inputs(self):
+    def to_normal_inputs(self, use_crib=False):
         return {
             'household_beta': self.household_beta,
             'sus': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.sus_varaince),
@@ -150,9 +151,9 @@ class Lognormal_Variance_Variance_Beta_Inputs(ModelInputs):
 
 class S80_P80_SAR_Inputs(ModelInputs):
     key_names = ['s80', 'p80', 'SAR']
-    s80_crib  = pd.read_csv('./data/s80_lookup.csv').set_index('s80')
-    p80_crib  = pd.read_csv('./data/p80_lookup.csv').set_index('p80')
-    beta_crib = pd.read_csv('./data/beta_lookup.csv').set_index(['s80', 'p80', 'SAR'])
+    s80_crib  = pd.read_csv(Path(__file__).parent / "../data/s80_lookup.csv").set_index('s80')
+    p80_crib  = pd.read_csv(Path(__file__).parent / "../data/p80_lookup.csv").set_index('p80')
+    beta_crib = pd.read_csv(Path(__file__).parent / "../data/beta_lookup.csv").set_index(['s80', 'p80', 'SAR'])
 
     def __init__(self, s80, p80, SAR) -> None:
         self.s80 = s80
