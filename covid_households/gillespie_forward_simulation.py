@@ -156,7 +156,7 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     state_lengths = torch.zeros_like(state, dtype=torch.double)
     for s in STATE:
         if state_lengths[state==s].nelement() > 0:
-            state_lengths[state==s] = state_length_sampler(s, state[state == s])
+            state_lengths[state==s] = state_length_sampler(s, state[state == s].shape)
 
     # while anyone is infected or exposed, we continue simulating
     while (state == STATE.exposed).any() or (state == STATE.infectious).any():
@@ -176,7 +176,7 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
                 # no one should be entering the susceptible state (they start there)
                 assert s>STATE.susceptible
                 # find the duration of the state for all the entrants
-                entrant_lengths = state_length_sampler(s, entrants)
+                entrant_lengths = state_length_sampler(s, entrants.shape)
                 state_lengths[torch.logical_and(changed_states, state==s)] = entrant_lengths
             # ensure that stationary states don't age out
             state_lengths[state == STATE.susceptible] = np.inf
