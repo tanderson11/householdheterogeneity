@@ -146,7 +146,7 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     connectivity_matrix = torch.from_numpy(numpy_connectivity_matrix).to(device)
     sus = torch.from_numpy(numpy_sus).to(device)
     inf = torch.from_numpy(numpy_inf).to(device)
-    t = torch.zeros((state.shape[0], 1), dtype=torch.float)
+    t = torch.zeros((state.shape[0], 1), dtype=torch.float, device=device)
     
     # a matrix whose ij-th entry is the relative probability that i would be infected by j if they are in the right states
     population_matrix = (sus @ inf) * connectivity_matrix
