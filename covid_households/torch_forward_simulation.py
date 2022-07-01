@@ -4,14 +4,17 @@ from settings import device
 from settings import model_constants
 from settings import STATE
 
-def torch_forward_time(np_state, state_length_sampler, beta_household, np_probability_matrix, np_importation_probability, duration=None, secondary_infections=True): # CLOSES AROUND DELTA_T
+# numpy_initial_state, beta, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix
+def torch_forward_time(np_state, beta_household, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix, np_importation_probability=None, duration=None, secondary_infections=True):
     debug = False  
 
     #start = time.time()
 
     ##  --- Move all numpy data structures onto the device as pytorch tensors ---
     # a matrix of probabilities with ith row jth column corresponding to the probability that ith individual is infected by the jth individual
-    population_matrix = torch.from_numpy(np_probability_matrix).to(device) # lacks the beta and delta_t terms
+    connectivity_matrix = torch.from_numpy(numpy_connectivity_matrix).to(device)
+    sus = torch.from_numpy(numpy_sus).to(device)
+    inf = torch.from_numpy(numpy_inf).to(device)
 
     state = torch.from_numpy(np_state).to(device)     ## move to device
     #print(state.type())
@@ -25,18 +28,22 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         np_state_lengths = state_length_sampler(np_state) ## how long spent in each state
         state_lengths = torch.from_numpy(np_state_lengths).to(device)
 
-    importation_probability = torch.from_numpy(np_importation_probability).to(device)
+    if np_importation_probability is not None:
+        importation_probability = torch.from_numpy(np_importation_probability).to(device)
+        import_flag = importation_probability.any()
+    else:
+        import_flag = False
 
     #print("device overhead: ", str(time.time() - start))
 
     ## --- Everything from here on out should be in the device and should be fast ---
-    p_mat = beta_household * model_constants.delta_t * population_matrix
+    p_mat = (sus @ inf) * connectivity_matrix
+    p_mat = beta_household * model_constants.delta_t * p_mat
 
     state_lengths[state == STATE.susceptible] = np.inf ## inf b/c doesn't change w/o infection
     state_lengths[state == STATE.removed]     = np.inf ## inf b/c doesn't change from removed
     t = 0
 
-    import_flag = importation_probability.any()
     if import_flag:
         assert(duration>0), "A steady importation rate is defined, but no duration was given."
     total_introductions = torch.sum((state == STATE.exposed), axis=1) # counting the total number of introductions, maintained throughout the run
