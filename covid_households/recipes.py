@@ -12,6 +12,7 @@ from settings import STATE
 import state_lengths as state_length_module
 import traits as traits
 from torch_forward_simulation import torch_forward_time
+from gillespie_forward_simulation import gillespie_simulation
 from interventions import Intervention
 
 class StateLengthConfig(enum.Enum):
@@ -456,7 +457,7 @@ class PopulationStructure:
         # Simulate #
         ############
 
-        infections = torch_forward_time(initial_state, household_beta, state_length_sampler, pop.sus, pop.inf, self._adjmat, importation_probability, secondary_infections=secondary_infections)
+        infections = torch_forward_time(initial_state, household_beta, state_length_sampler, pop.sus, pop.inf, self._adjmat, np_importation_probability=importation_probability, secondary_infections=secondary_infections)
 
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"

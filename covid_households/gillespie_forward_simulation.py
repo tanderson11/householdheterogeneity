@@ -3,7 +3,7 @@ import torch
 from settings import device
 import numpy as np
 
-def find_propensities(state, beta, sus, inf, connectivity_matrix):
+def find_propensities(state, beta, probability_matrix):
     """
     Determines the propensities towards each event (read: different person being infected) possible in each household.
     
@@ -11,16 +11,10 @@ def find_propensities(state, beta, sus, inf, connectivity_matrix):
     ----------
     state : ndarray / tensor
         Array of current state for each individual in the population
-    connectivity_matrix : ndarray / tensor
-        Matrix with A_ij = 1 if individuals i and j are connected
-        (in the same house but not identical) and 0 otherwise
     beta : float
         Constant rate of infection
-    sus : ndarray / tensor
-        Array of the individuals' relative susceptibilities
-    inf : ndarray / tensor
-        Array of the individuals' relative infectivities
-        
+    connectivity_matrix : ndarray / tensor
+        Matrix where A_ij is the relative probability that i would be infected by j if i is susceptible and j infectious
     Returns
     -------
     propensities : ndarray
@@ -34,12 +28,8 @@ def find_propensities(state, beta, sus, inf, connectivity_matrix):
     inf_mask = (state == STATE.infectious)
     sus_mask = (state == STATE.susceptible)
     
-    # a matrix whose ij-th entry is the relative probability that i would be infected by j if they are in the right states
-    population_matrix = (sus @ inf) * connectivity_matrix
-    population_matrix = beta * population_matrix
-    
     # the propensities are those probabilities ... if the states of the two individuals are correct
-    propensities = population_matrix * sus_mask * inf_mask.permute(0, 2, 1)
+    propensities = probability_matrix * sus_mask * inf_mask.permute(0, 2, 1)
     propensities = propensities.sum(axis=2)
     return propensities
 
@@ -120,7 +110,7 @@ def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_
 
     return dstate, dtime
 
-def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix):
+def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix, **kwargs):
     """
     Takes an initial state of infections in households forward in time to fixation.
     Returns a matrix of households where True represents an infected individual and False an uninfected individaul.
@@ -143,6 +133,8 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     numpy_connectivity_matrix : ndarray
         Matrix with A_ij = 1 if individuals i and j are connected
         (in the same house but not identical) and 0 otherwise
+    **kwargs:
+        Old versions supported some additional keyword arguments. These aren't used by us but are allowed for to promote compatibility.
         
     Returns
     -------
@@ -156,6 +148,10 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     inf = torch.from_numpy(numpy_inf).to(device)
     t = torch.zeros((state.shape[0], 1), dtype=torch.float)
     
+    # a matrix whose ij-th entry is the relative probability that i would be infected by j if they are in the right states
+    population_matrix = (sus @ inf) * connectivity_matrix
+    population_matrix = beta * population_matrix
+
     # find the duration of the exposed state for everyone who starts exposed
     state_lengths = torch.zeros_like(state, dtype=torch.double)
     for s in STATE:
@@ -165,7 +161,7 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     # while anyone is infected or exposed, we continue simulating
     while (state == STATE.exposed).any() or (state == STATE.infectious).any():
         # perform an update step by finding the next event (via Gillespie simulation) in each household
-        dstate, dtime = vector_gillespie_step(find_propensities, state, t, state_lengths, beta, sus, inf, connectivity_matrix)
+        dstate, dtime = vector_gillespie_step(find_propensities, state, t, state_lengths, beta, population_matrix)
         state = state + dstate
         t     = t     + dtime
         # the time of waiting in each state /decreases/ by dtime
