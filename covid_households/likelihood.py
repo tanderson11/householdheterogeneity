@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import scipy.interpolate
 
 def confidence_mask_from_logl(logl_df, percentiles=(0.95,), **kwargs):
     normalized_probability = normalize_probability(logl_df)
