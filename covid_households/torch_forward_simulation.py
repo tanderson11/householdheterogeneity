@@ -20,7 +20,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
         state_lengths = torch.zeros_like(state, dtype=torch.double)
         for s in STATE:
             if state_lengths[state==s].nelement() > 0:
-                state_lengths[state==s] = state_length_sampler(s, state[state == s]) ## how long spent in each state; already on device
+                state_lengths[state==s] = state_length_sampler(s, state[state == s].shape) ## how long spent in each state; already on device
     else:
         np_state_lengths = state_length_sampler(np_state) ## how long spent in each state
         state_lengths = torch.from_numpy(np_state_lengths).to(device)
@@ -146,7 +146,7 @@ def torch_forward_time(np_state, state_length_sampler, beta_household, np_probab
                     if entrants.nelement() > 0:
                         #print("s", s)
                         assert s>STATE.susceptible # no one should be entering the susceptible state (they start there)
-                        entrant_lengths = state_length_sampler(s, entrants)
+                        entrant_lengths = state_length_sampler(s, entrants.shape)
                         state_lengths[torch.logical_and(new_state != state, new_state==s)] = entrant_lengths
             else:
                 states_that_changed = new_state[new_state != state]

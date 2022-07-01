@@ -41,12 +41,12 @@ torch_scale_vec = torch.from_numpy(numpy_scale_vec).to(device)
 
 gamma_DISTS = [torch.distributions.gamma.Gamma(torch.tensor([alpha]).to(device), torch.tensor([1.0]).to(device)) for alpha in torch_shape_vec]
 
-def gamma_state_length_sampler(new_state, entrants): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
+def gamma_state_length_sampler(new_state, entrants_shape): #state is the constant of the state people are entering. entrants is the vector of individuals entering that state
     if new_state == STATE.removed or new_state == STATE.susceptible:
-        return torch.full_like(entrants, 1e10, dtype=torch.double).to(device)
+        return torch.full(entrants_shape, 1e10, dtype=torch.double).to(device)
 
     dist = gamma_DISTS[new_state]
-    samples = dist.sample(entrants.shape)
+    samples = dist.sample(entrants_shape)
     beta = model_constants.delta_t/torch_scale_vec[new_state]
     samples = torch.round(samples / beta)
     return torch.squeeze(1+samples) # Time must be at least 1.
@@ -73,12 +73,12 @@ torch_lognormal_DISTS = {
         ),
 }
 
-def lognormal_state_length_sampler(new_state, entrants):
+def lognormal_state_length_sampler(new_state, entrants_shape):
     if new_state == STATE.removed or new_state == STATE.susceptible:
-        return torch.full_like(entrants, 1e10, dtype=torch.double).to(device)
+        return torch.full(entrants_shape, 1e10, dtype=torch.double).to(device)
     #import pdb; pdb.set_trace()
     dist = torch_lognormal_DISTS[new_state]
-    samples = dist.sample(entrants.shape)
+    samples = dist.sample(entrants_shape)
     samples = torch.round(samples / model_constants.delta_t)
     return torch.squeeze(1+samples).double()
 
