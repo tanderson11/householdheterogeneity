@@ -20,6 +20,10 @@ class StateLengthConfig(enum.Enum):
     constant = 'constant'
     lognormal = 'lognormal'
 
+class ForwardSimulationConfig(enum.Enum):
+    finite_timesteps = 'finite timesteps'
+    gillespie = 'gillespie'
+
 class InitialSeedingConfig(enum.Enum):
     seed_one_by_susceptibility = 'seed one by susceptibility'
     no_initial_infections = 'seed none'
@@ -31,14 +35,14 @@ class ImportationRegime(NamedTuple):
 class Model(NamedTuple):
     # simulation configuration
     state_lengths: str = StateLengthConfig.lognormal.value
+    forward_simulation: str = ForwardSimulationConfig.gillespie.value
     initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
     importation: ImportationRegime = None
     secondary_infections: bool = True # for debugging / testing
     intervention: Intervention = None
 
-    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False, nice_index=False):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False):
         assert household_beta is not None
-        #import pdb; pdb.set_trace()
         if population is None:
             assert sizes is not None
             expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
@@ -420,7 +424,7 @@ class PopulationStructure:
 
         return Population(self.is_occupied, sus, inf)
 
-    def simulate_population(self, household_beta, state_lengths, initial_seeding, importation, secondary_infections=True, intervention=None):
+    def simulate_population(self, household_beta, state_lengths, forward_simulation, initial_seeding, importation, secondary_infections=True, intervention=None):
         ###################
         # Make population #
         ###################
@@ -453,11 +457,18 @@ class PopulationStructure:
         else:
             raise Exception('unimplemented state length configuration')
 
+        forward_simulation_config = ForwardSimulationConfig(forward_simulation)
+        if forward_simulation_config == ForwardSimulationConfig.finite_timesteps:
+            simulator = torch_forward_time
+        elif forward_simulation_config == ForwardSimulationConfig.gillespie:
+            simulator = gillespie_simulation
+        else:
+            raise Exception('unimplemented forward simulation configuration')
         ############
         # Simulate #
         ############
 
-        infections = torch_forward_time(initial_state, household_beta, state_length_sampler, pop.sus, pop.inf, self._adjmat, np_importation_probability=importation_probability, secondary_infections=secondary_infections)
+        infections = simulator(initial_state, household_beta, state_length_sampler, pop.sus, pop.inf, self._adjmat, np_importation_probability=importation_probability, secondary_infections=secondary_infections)
 
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
