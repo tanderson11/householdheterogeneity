@@ -456,7 +456,7 @@ class PopulationStructure:
         # Simulate #
         ############
 
-        infections = torch_forward_time(initial_state, state_length_sampler, household_beta, pop.make_connectivity_matrix(self._adjmat), importation_probability, secondary_infections=secondary_infections)
+        infections = torch_forward_time(initial_state, household_beta, state_length_sampler, pop.sus, pop.inf, self._adjmat, importation_probability, secondary_infections=secondary_infections)
 
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
@@ -469,4 +469,3 @@ if __name__ == '__main__':
     x = PopulationStructure({5:10000, 10:10000})
     pop = x.make_population()
     pop.seed_one_by_susceptibility()
-    #pop.seed_one_by_susceptibility()
