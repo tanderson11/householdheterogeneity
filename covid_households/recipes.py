@@ -48,7 +48,7 @@ class Model(NamedTuple):
             expanded_sizes = {size:count*trials for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
             population = PopulationStructure(expanded_sizes, sus, inf)
 
-        df = population.simulate_population(household_beta, *self)
+        df = population.simulate_population(household_beta, *self, sus=sus, inf=inf)
 
         # restore a notion of 'trials'
         # (we flattened the households into one large population for efficiency, now add the labels back to restructure)
@@ -80,6 +80,7 @@ class Model(NamedTuple):
         if progress_path is not None:
             metadata.save(progress_path)
 
+        population = None
         two_d_dfs = []
         for v1 in axis1:
             one_d_dfs = []
@@ -96,7 +97,11 @@ class Model(NamedTuple):
                     inf_dist = default_parameters['inf']
                     beta = default_parameters['household_beta']
 
-                    point_results = self.run_trials(beta, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
+                    if population is None:
+                        expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
+                        population = PopulationStructure(expanded_sizes, sus_dist, inf_dist)
+
+                    point_results = self.run_trials(beta, population=population, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
 
                     trait_parameter_name, trait_parameter_value = sus_dist.as_column()
                     point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
@@ -395,7 +400,7 @@ class Results(NamedTuple):
         return missing
 
 class PopulationStructure:
-    def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait()):
+    def __init__(self, household_sizes, susceptibility=traits.ConstantTrait(), infectivity=traits.ConstantTrait(), is_occupied=None, adjmat=None):
         assert isinstance(household_sizes, dict)
         self.household_sizes_dict = household_sizes
         assert isinstance(susceptibility, traits.Trait)
@@ -409,27 +414,38 @@ class PopulationStructure:
 
         self.max_size = self.sizes_table.max()
         #import pdb; pdb.set_trace()
-        self.is_occupied = np.array([[True if i < hh_size else False for i in range(self.max_size)] for hh_size in self.sizes_table], dtype=bool) # 1. if individual exists else 0.
 
         self.total_households = len(self.sizes_table)
 
-        self._nd_eyes = np.stack([np.eye(self.max_size,self.max_size) for i in range(self.total_households)]) # we don't worry about small households here because it comes out in a wash later
-        self._adjmat = 1 - self._nd_eyes # this is used so that an individual doesn't 'infect' themself
+        if is_occupied is None:
+            self.is_occupied = np.array([[True if i < hh_size else False for i in range(self.max_size)] for hh_size in self.sizes_table], dtype=bool) # 1. if individual exists else 0.
+        else:
+            self.is_occupied = is_occupied
 
-    def make_population(self):
+        if adjmat is None:
+            _nd_eyes = np.stack([np.eye(self.max_size,self.max_size) for i in range(self.total_households)]) # we don't worry about small households here because it comes out in a wash later
+            self._adjmat = 1 - _nd_eyes # this is used so that an individual doesn't 'infect' themself
+        else:
+            self._adjmat = adjmat
+
+    def make_population(self, susceptibility=None, infectivity=None):
+        # if we get overrides for susceptibility and infectivity, we use those
+        susceptibility = susceptibility if susceptibility is not None else self.susceptibility
+        infectivity = infectivity if infectivity is not None else self.infectivity
+
         # creates a real draw from the trait distributions to represent
         # one instance of the abstract structure
-        sus = np.expand_dims(self.susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
-        inf = np.transpose(np.expand_dims(self.infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
+        sus = np.expand_dims(susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
+        inf = np.transpose(np.expand_dims(infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
 
         return Population(self.is_occupied, sus, inf)
 
-    def simulate_population(self, household_beta, state_lengths, forward_simulation, initial_seeding, importation, secondary_infections=True, intervention=None):
+    def simulate_population(self, household_beta, state_lengths, forward_simulation, initial_seeding, importation, secondary_infections=True, intervention=None, sus=None, inf=None):
         ###################
         # Make population #
         ###################
 
-        pop = self.make_population()
+        pop = self.make_population(sus, inf)
 
         ################################
         # Process and verify arguments #
