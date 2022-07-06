@@ -109,9 +109,9 @@ class Model(NamedTuple):
                     point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
                     point_results['beta'] = np.float(f"{beta:.3f}")
 
-                    point_results[key1] = v1
-                    point_results[key2] = v2
-                    point_results[key3] = v3
+                    point_results[key1] = np.float(f"{v1:.3f}")
+                    point_results[key2] = np.float(f"{v2:.3f}")
+                    point_results[key3] = np.float(f"{v3:.3f}")
 
                     one_d_dfs.append(point_results)
             two_d_df = pd.concat(one_d_dfs)
@@ -198,6 +198,12 @@ class SimulationRegion(NamedTuple):
     axes_by_name: OrderedDict
     parameter_class: ModelInputs
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        return super(NpEncoder, self).default(obj)
+
 class Metadata(NamedTuple):
     constants: dict
     model: Model
@@ -205,15 +211,15 @@ class Metadata(NamedTuple):
     parameters: type
 
     def save(self, root):
+        #import pdb; pdb.set_trace()
         with open(os.path.join(root, 'metadata.json'), 'w') as f:
-            json.dump(self, f)
+            json.dump(self, f, cls=NpEncoder)
 
     @classmethod
     def load(cls, path):
         with open(path, 'r') as f:
             data = json.load(f)
 
-        #import pdb; pdb.set_trace()
         data[cls._fields.index('model')] = Model(*data[cls._fields.index('model')])
         metadata = cls(*data)
         return metadata
