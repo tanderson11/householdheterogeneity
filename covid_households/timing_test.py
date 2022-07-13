@@ -2,9 +2,9 @@ import recipes
 import utilities
 import numpy as np
 import os
-s80_axis = np.linspace(0.2, 0.8, 3)
-p80_axis = np.linspace(0.2, 0.8, 3)
-sar_axis = np.linspace(0.15, 0.35, 3)
+s80_axis = np.linspace(0.2, 0.8, 6)
+p80_axis = np.linspace(0.2, 0.8, 6)
+sar_axis = np.linspace(0.15, 0.35, 5)
 from typing import OrderedDict
 axes_by_key = OrderedDict({'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis})
 region = recipes.SimulationRegion(axes_by_key, utilities.S80_P80_SAR_Inputs)
