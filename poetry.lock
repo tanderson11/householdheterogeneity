@@ -926,7 +926,7 @@ numpy = ">=1.17.3,<1.25.0"
 
 [[package]]
 name = "seaborn"
-version = "0.11.1"
+version = "0.11.2"
 description = "seaborn: statistical data visualization"
 category = "main"
 optional = false
@@ -937,10 +937,6 @@ matplotlib = ">=2.2"
 numpy = ">=1.15"
 pandas = ">=0.23"
 scipy = ">=1.0"
-
-[package.source]
-type = "file"
-url = "seaborn-0.11.1-py3-none-any.whl"
 
 [[package]]
 name = "send2trash"
@@ -1045,18 +1041,14 @@ python-versions = ">=3.7"
 
 [[package]]
 name = "torch"
-version = "1.9.0"
+version = "1.12.0"
 description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
 category = "main"
 optional = false
-python-versions = ">=3.6.2"
+python-versions = ">=3.7.0"
 
 [package.dependencies]
 typing-extensions = "*"
-
-[package.source]
-type = "file"
-url = "torch-1.9.0-cp39-none-macosx_11_0_arm64.whl"
 
 [[package]]
 name = "tornado"
@@ -1140,7 +1132,7 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.10"
-content-hash = "93afaee9c10f4cc316cd4c12beea2c1f4240bc24fd773d38a9cb5fc35fd39256"
+content-hash = "cba83798c93342e90c1a32a9737918a9c1a8abee3048c128e95414e9e9ca941e"
 
 [metadata.files]
 appnope = [
@@ -1443,9 +1435,7 @@ pyzmq = []
 qtconsole = []
 qtpy = []
 scipy = []
-seaborn = [
-    {file = "seaborn-0.11.1-py3-none-any.whl", hash = "sha256:4e1cce9489449a1c6ff3c567f2113cdb41122f727e27a984950d004a88ef3c5c"},
-]
+seaborn = []
 send2trash = [
     {file = "Send2Trash-1.8.0-py3-none-any.whl", hash = "sha256:f20eaadfdb517eaca5ce077640cb261c7d2698385a6a0f072a4a5447fd49fa08"},
     {file = "Send2Trash-1.8.0.tar.gz", hash = "sha256:d2c24762fd3759860a0aff155e45871447ea58d2be6bdd39b5c8f966a0c99c2d"},
@@ -1469,9 +1459,7 @@ tomli = [
     {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
     {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
-torch = [
-    {file = "torch-1.9.0-cp39-none-macosx_11_0_arm64.whl", hash = "sha256:569ead6ae6bb0e636df0fc8af660ef03260e630dc5f2f4cf3198027e7b6bb481"},
-]
+torch = []
 tornado = []
 tqdm = [
     {file = "tqdm-4.64.0-py2.py3-none-any.whl", hash = "sha256:74a2cdefe14d11442cedf3ba4e21a3b84ff9a2dbdc6cfae2c34addb2a14a5ea6"},
