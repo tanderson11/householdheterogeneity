@@ -10,6 +10,7 @@ class Trait(abc.ABC):
     def plot(self, samples=1000, **kwargs):
         shaped_array = np.full((samples,), True)
         output = np.array(self(shaped_array))
+
         sample_mean = np.mean(output)
         sample_var = np.var(output)
         sample_median = np.median(output)

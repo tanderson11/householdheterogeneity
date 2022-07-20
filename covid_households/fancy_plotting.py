@@ -322,7 +322,7 @@ def subfigure_factory(plot_type, ax, interactive):
         subfigure = ContourPlot(ax, keys, logl_df, "Contours of loglikelihood with default levels", color_label="logl")
 
     elif 'probability contour plot' in plot_type:
-        kwargs = {}
+        kwargs = {'scatter_stars':False}
         if '2D slice' in plot_type:
             full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
             logl_df = interactive.solve_likelihood(
@@ -336,13 +336,9 @@ def subfigure_factory(plot_type, ax, interactive):
 
             # now we have to reduce the dimensions again to the ones that are appropriate for plotting
             dropped_parameters = interactive.unspoken_parameters
-            #sample_dropped_parameters = {'sample ' + k: v for k,v in dropped_parameters.items()}
-            #sample_dropped_parameters.update(dropped_parameters)
-            #import pdb; pdb.set_trace()
             prob_df = interactive.restrict_to_dimensions_of_interest(prob_df, dropped_parameters)
             prob_df = prob_df.loc[trial]
             kwargs.update({'vmin':0.0, 'vmax':max_prob})
-            #import pdb; pdb.set_trace()
         elif '3D slice free parameter' in plot_type:
             full_keys = list(interactive.unspoken_parameters.keys()) + interactive.keys
             logl_df = interactive.solve_likelihood(
@@ -553,19 +549,13 @@ class OnAxesSubfigure(Subfigure):
     def scatter_point_estimates(self, interactive, **kwargs):
         width = self.stacked_df.unstack().columns.size
 
-        key1_value = interactive.baseline_point.parameter_coordinates[interactive.key1]
-        key2_value = interactive.baseline_point.parameter_coordinates[interactive.key2]
-        #scatter_df = self.interactive.baseline_at_point(key1_value, key2_value, one_trial=False) # fetch all the trials at the currently selected points
-
         x_mins = []
         y_mins = []
         colors = []
-        #import pdb; pdb.set_trace()
         for trial,_logl_df in interactive.logl_df.groupby("trial"): # go to the baseline coordinates, then look at all the trials
             idx = _logl_df.reset_index()["logl"].argmax() # idiom for finding position of largest value / not 100% sure all the reseting etc. is necessary
             x_min_index = idx % width
             y_min_index = idx // width
-            #import pdb; pdb.set_trace()
             x_min, y_min = self.index_to_xy(x_min_index, y_min_index)
 
             x_min = x_min + self.center_offset# + (np.random.rand(1)/2 - 0.25)*self.patches_x_scale # the middle of the cell with random fuzzing so there's no overlap

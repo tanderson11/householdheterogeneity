@@ -35,7 +35,8 @@ if test == 'test2':
         frequency_df = results.df
         frequency_df = frequency_df[frequency_df.index.get_level_values('SAR') <= 0.39]
     else:
-        results = recipes.Results.load('/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability')
+        results = recipes.Results.load('/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/drop_problems')
+        #results = recipes.Results.load('/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/')
         results.find_frequencies()
         frequency_df = results.df
     
@@ -43,14 +44,15 @@ if test == 'test2':
     frequency_df = frequency_df['frequency']
     #import pdb; pdb.set_trace()
     #plotting_keys = ["p80", "SAR"]
-    plotting_keys = ["p80", "SAR"]
+    plotting_keys = ["s80", "SAR"]
 
     fancy_plotting.InteractiveFigure(
         plotting_keys,
         figures,
         frequency_df,
-        unspoken_parameters={'s80':0.8},
-        simulation_population={3: 2612, 4: 744, 5: 595, 6: 67, 7: 57, 8: 50},
+        unspoken_parameters={'p80':0.5},
+        simulation_population={3: 871, 4: 248, 5: 198, 6: 22, 7: 19, 8: 17},
+        #simulation_population={3: 2612, 4: 744, 5: 595, 6: 67, 7: 57, 8: 50},
         #simulation_population={4:2000, 8:1000},
         simulation_trials=1,
         figsize=(10, 4.5))
