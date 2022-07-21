@@ -238,7 +238,8 @@ class InteractiveFigure:
     def make_figure(self):
         # -- Associating Subfigure objects with axes objects --
         self.fig, self.ax = plt.subplots(*self.subplots.shape, figsize=self.figsize)
-
+        if self.subplots.shape == (1,1):
+            self.ax = np.array([self.ax])
         for subfigure_type, _ax in zip(self.subplots.ravel(), self.ax.ravel()):
             _ax.associated_subfigure = subfigure_factory(subfigure_type, _ax, self) # adds a subfigure parameter to each plt axes instance
 
