@@ -38,9 +38,9 @@ if __name__ == '__main__':
     import utilities
     import numpy as np
 
-    s80_axis = np.linspace(0.10, 0.80, 36)
-    p80_axis = np.linspace(0.10, 0.80, 36)
-    sar_axis = np.linspace(0.01, 0.04, 4)
+    s80_axis = np.linspace(0.02, 0.08, 4)
+    p80_axis = np.linspace(0.02, 0.80, 40)
+    sar_axis = np.linspace(0.01, 0.60, 60)
 
     #sar_axis = np.linspace(0.05, 0.60, 56)
     #s80_axis = np.linspace(0.2, 0.8, 3)

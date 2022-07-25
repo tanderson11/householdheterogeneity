@@ -11,7 +11,7 @@ If you want to work with a notebook in Google Colab, rather than using `git clon
 Notebooks:
 - `MinimalForwardSimulation.ipynb`: a notebook that provides the minimal code necessary to run a forward simulation and an example of how to plot infections in households with different amounts of heterogeneity.
 - `ViolinsAndPowerCalc.ipynb`: a notebook for benchmarking the precision and bias of fits (ie: looking at the distribution of MLEs over many observations/simulations).
-- `EmpiricalFits.ipynb`: a notebook for calculating the MLE and confidence intervals for a particular empirical data set.
+- `EmpiricalFits.ipynb`: a notebook for calculating the MLE and confidence intervals from a fit to a particular empirical data set.
 
 
 ### Getting started locally
