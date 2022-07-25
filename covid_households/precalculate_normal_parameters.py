@@ -1,5 +1,6 @@
 from multiprocessing import Pool
 import tqdm
+import pandas as pd
 
 
 def to_normal_inputs(point):
@@ -39,7 +40,9 @@ if __name__ == '__main__':
 
     s80_axis = np.linspace(0.10, 0.80, 36)
     p80_axis = np.linspace(0.10, 0.80, 36)
-    sar_axis = np.linspace(0.05, 0.60, 56)
+    sar_axis = np.linspace(0.01, 0.04, 4)
+
+    #sar_axis = np.linspace(0.05, 0.60, 56)
     #s80_axis = np.linspace(0.2, 0.8, 3)
     #p80_axis = np.linspace(0.2, 0.8, 3)
     #sar_axis = np.linspace(0.15, 0.35, 3)
@@ -48,3 +51,12 @@ if __name__ == '__main__':
 
     region = recipes.SimulationRegion(axes_by_key, utilities.S80_P80_SAR_Inputs)
     parameters = calculate_region_parameters(region)
+
+    beta_rows = []
+    i = 0
+    for v1 in s80_axis:
+        for v2 in p80_axis:
+            for v3 in sar_axis:
+                beta_rows.append([(np.float(f"{v1:.3f}")), (np.float(f"{v2:.3f}")), (np.float(f"{v3:.3f}")), parameters[i]['household_beta']])
+                i += 1
+    beta_frame = pd.DataFrame(beta_rows, columns=('s80','p80','SAR','beta')).set_index(['s80','p80','SAR'])
