@@ -149,6 +149,11 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     assert(beta.success is True)
     return beta.x[0]
 
+def residual_wrapper(point, skip_old=True):
+    if skip_old and (point in S80_P80_SAR_Inputs.bad_combinations_crib.index):
+        return S80_P80_SAR_Inputs.bad_combinations_crib.loc[point]['residuals']
+    return calculate_residual(point)
+
 def calculate_residual(point):
     s80, p80, sar = point
     s80 = float(f"{s80:.3f}")
@@ -167,7 +172,6 @@ def calculate_residual(point):
 
     beta = S80_P80_SAR_Inputs.beta_crib.loc[s80, p80, sar]
     generalized_rv = lognormal_calculate_generalized_period(sus_dist, inf_dist)
-
     objective_function = lognormal_SAR_objective_function_crafter(sar, generalized_rv)
     return objective_function(beta)
 
