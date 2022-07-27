@@ -29,6 +29,7 @@ new_parameters/
 batched_figs/
 test/
 personal_notebooks/
+experiment_outputs/
 
 # logs
 *.log
