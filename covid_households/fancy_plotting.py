@@ -286,6 +286,8 @@ class InteractiveFigure:
     def on_key(self, event):
         if event.key == " ":
             self.new_baseline_flag = True
+        elif event.key == "x":
+            self.fig.savefig('./batched_figs/contours/interactive_figure.pdf', dpi=400)
 
 def subfigure_factory(plot_type, ax, interactive):
     keys = (interactive.key1, interactive.key2)
