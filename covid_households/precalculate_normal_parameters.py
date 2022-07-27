@@ -2,6 +2,10 @@ from multiprocessing import Pool
 import tqdm
 import pandas as pd
 
+### Since every conversion of an $(s_{80}, p_{80}, \text{SAR})$ coordinate to a $(\text{variance}, \text{variance}, \beta)$ coordinate
+### requires at many numerical intergrations, it is slow. So we want to calculate these conversions just once and save the results.
+
+### This file when executed as `__main__` calculates these conversions for every coordinate in a specified `region`.
 
 def to_normal_inputs(point):
     region, key1, key2, key3, v1, v2, v3 = point
