@@ -1,4 +1,3 @@
-import preparation
 import fancy_plotting
 import numpy as np
 import recipes
@@ -23,7 +22,7 @@ fancy_plotting.InteractiveFigure(
     plotting_keys,
     figures,
     frequency_df,
-    unspoken_parameters={'p80':0.5},
+    unspoken_parameters={'p80':0.3},
     #simulation_population={3: 174, 4: 50, 5: 40, 6: 4, 7: 4, 8: 3}, #POP=1000
     simulation_population={3: 871, 4: 248, 5: 198, 6: 22, 7: 19, 8: 17}, #POP=5000
     #simulation_population={3: 2612, 4: 744, 5: 595, 6: 67, 7: 57, 8: 50}, #POP=15000
