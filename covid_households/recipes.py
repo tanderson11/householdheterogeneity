@@ -6,7 +6,9 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 import os
 import json
+from typing import OrderedDict
 
+from utilities import ModelInputs
 from settings import model_constants
 from settings import STATE
 import state_lengths as state_length_module
@@ -15,14 +17,18 @@ from torch_forward_simulation import torch_forward_time
 from gillespie_forward_simulation import gillespie_simulation
 from interventions import Intervention
 
+### ENUMERATIONS
+### We use `enum.Enum`s (enumerations) to create settings/options that are constrained to a finite set of options.
+### This provides easy validation because if we have a string `setting_name` we can try SettingEnumeration(`setting_name`), which throws an error if that is an invalid setting.
+
 class StateLengthConfig(enum.Enum):
+    lognormal = 'lognormal'
     gamma = 'gamma'
     constant = 'constant'
-    lognormal = 'lognormal'
 
 class ForwardSimulationConfig(enum.Enum):
-    finite_timesteps = 'finite timesteps'
     gillespie = 'gillespie'
+    finite_timesteps = 'finite timesteps'
 
 class InitialSeedingConfig(enum.Enum):
     seed_one_by_susceptibility = 'seed one by susceptibility'
@@ -33,7 +39,15 @@ class ImportationRegime(NamedTuple):
     importation_rate: float
 
 class Model(NamedTuple):
-    # simulation configuration
+    """The Model class contains configuration and settings related to how forward simulation is performed.
+
+    Fields:
+        state_lengths: what distribution of durations should be used for the infectious and exposed state. Defaults to 'lognormal'.
+        forward_simulation: what method of forward simulation should be used. Defaults to 'gillespie'.
+        importation: a tuple of (# days, importation probability) that adds a constant rate of risk of importation into a household. Defaults to None.
+        secondary_infections: DEBUG only: whether infected secondary contacts spread chains of infection. Defaults to True.
+        intervention: an optional Intervention object that acts on the relative susceptibilities, infectivies, and the initial state to represent an intervention. Defaults to None.
+    """
     state_lengths: str = StateLengthConfig.lognormal.value
     forward_simulation: str = ForwardSimulationConfig.gillespie.value
     initial_seeding: str = InitialSeedingConfig.seed_one_by_susceptibility.value
@@ -41,7 +55,21 @@ class Model(NamedTuple):
     secondary_infections: bool = True # for debugging / testing
     intervention: Intervention = None
 
-    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=False):
+    def run_trials(self, household_beta=None, trials=1, population=None, sizes=None, sus=traits.ConstantTrait(), inf=traits.ConstantTrait(), as_counts=True):
+        """Simulate a group of households forward in time many times and collect the outcome of infections / household grouped by trial.
+
+        Args:
+            household_beta (float, optional): the probability/time of an infection passing from infectious --> susceptible. Defaults to None.
+            trials (int, optional): how many differently seeded outbreaks to simulate for the same population. Defaults to 1.
+            population (recipes.Population, optional): a PopulationStructure object that specifies the sizes of households. Either population or sizes must be specified. Defaults to None.
+            sizes (dict, optional): a dictionary that describes the cohort of households by mapping household size --> # households of that size. Either population or sizes must be specified. Defaults to None.
+            sus (traits.Trait, optional): a Trait object that describes the distribution of relative susceptibility in the population. Defaults to traits.ConstantTrait().
+            inf (traits.Trait, optional): a Trait object that describes the distribution of relative infectivity in the population. Defaults to traits.ConstantTrait().
+            as_counts (bool, optional): if True, group the outcomes by household size. If False, return outcomes in each household separately. Defaults to True.
+
+        Returns:
+            pandas.DataFrame: a table of outcome infections where 'infections' indicates how many infections where present at fixation (counting the index case) and 'trial' indicates which trial those infections occurred in. The shape of the data depends on the `use_counts` argument.
+        """
         assert household_beta is not None
         if population is None:
             assert sizes is not None
@@ -71,7 +99,19 @@ class Model(NamedTuple):
         return df
 
     def run_grid(self, sizes, region, progress_path=None, use_crib=False):
+        """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
+
+        Args:
+            sizes (dict): a mapping of household size --> # households of that size, which describes the population to simulate whose initial state is to be simulated forward in time.
+            region (recipes.SimulationRegion): a convex 3D region in parameter space over which to simulate.
+            progress_path (str, optional): the path to a directory in which to save incremental progress and final results. Defaults to None.
+            use_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values --> necessary inputs for simulation to save time. Defaults to False.
+
+        Returns:
+            recipes.Results: the results at each combination of parameters with attributes `df` (the table of infections for the households) and `metadata` (information about the settings used to execute simulation).
+        """
         axis_data = list(region.axes_by_name.items())
+        # extract the names of each parameter and the range of each parameter
         key1, axis1 = axis_data[0]
         key2, axis2 = axis_data[1]
         key3, axis3 = axis_data[2]
@@ -81,6 +121,8 @@ class Model(NamedTuple):
             metadata.save(progress_path)
 
         population = None
+
+        # for each point in the region, simulate infections and hold onto the results
         two_d_dfs = []
         for v1 in axis1:
             one_d_dfs = []
@@ -90,39 +132,44 @@ class Model(NamedTuple):
                     params[key1] = v1
                     params[key2] = v2
                     params[key3] = v3
-
+                    # convert the point in the region to inputs that are recognizable for simulation
                     default_parameters = region.parameter_class(**params).to_normal_inputs(use_crib=use_crib)
-
+                    # extract the three desired quantities from the default parameters we just calculated
                     sus_dist = default_parameters['sus']
                     inf_dist = default_parameters['inf']
                     beta = default_parameters['household_beta']
 
+                    # for the first point, we need to create the PopulationStructure object, which knows who lives in which household and therefore all the connections between individuals
+                    # the random elements will all be calculated when the Population object is realized in the `run_trials` method below
                     if population is None:
                         expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
                         population = PopulationStructure(expanded_sizes, sus_dist, inf_dist)
 
+                    # simulate to find resultant infections at this point in parameter space
                     point_results = self.run_trials(beta, population=population, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
 
+                    # add labels to the dataframe based on the parameters truly used to simulate
                     trait_parameter_name, trait_parameter_value = sus_dist.as_column()
                     point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
                     trait_parameter_name, trait_parameter_value = inf_dist.as_column()
                     point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
                     point_results['beta'] = np.float(f"{beta:.3f}")
-
+                    # and add labels based on the parameters that are custom for this region
                     point_results[key1] = np.float(f"{v1:.3f}")
                     point_results[key2] = np.float(f"{v2:.3f}")
                     point_results[key3] = np.float(f"{v3:.3f}")
-
+                    # we collect results for each 'line' in the 3D grid, then add those lines together to make planes, and then compile all the planes into a cube
                     one_d_dfs.append(point_results)
             two_d_df = pd.concat(one_d_dfs)
-            #return two_d_df
             two_d_dfs.append(two_d_df)
+            # save progress incrementally for each plane
             if progress_path is not None:
                 parquet_df = pa.Table.from_pandas(two_d_df)
                 pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
             two_d_df = None
         three_d_df = pd.concat(two_d_dfs)
 
+        # let the custom labels of the regions become indices into the DataFrame
         df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
         return Results(df, metadata)
 
@@ -132,10 +179,16 @@ class Population(NamedTuple):
     inf: np.ndarray
 
     def seed_one_by_susceptibility(self):
+        """Introduce one infection to each household in proportion to the susceptibility of individuals.
+
+        Returns:
+            np.ndarray: the initial state of infections in each household in the population. Values correspond to constants.STATE enumeration values.
+        """
         # Let's say a household has susceptibilites like 0.5, 1.0, 2.0
-        # we want to map these onto a 'die' that is rolled between 0 and 1
-        # like 1/7, 2/7, 4/7 -> 1/7, 3/7, 7/7. Then we roll our die in [0,1] and look where it 'landed'
-        # ie: maps the susceptibilities onto their share of the unit interval
+        # We want to map these onto a 'die' that is rolled between 0 and 1
+        # Like 1/7, 2/7, 4/7 -> 1/7, 3/7, 7/7. Then we roll our die in [0,1] and look where it 'landed'
+        # IE: maps the susceptibilities onto their share of the unit interval
+        # This line of code does that:
         roll_mapping = np.cumsum(np.squeeze(self.sus)/np.sum(self.sus, axis=1), axis=1)
         roll = np.random.random((roll_mapping.shape[0],1))
         hits = np.where(roll_mapping > roll) # our first `False` in each row of this array corresponds to where we want to seed the infection
@@ -152,6 +205,17 @@ class Population(NamedTuple):
         return initial_state
 
     def make_initial_state(self, initial_seeding):
+        """Using the specified initial_seeding protocol, generate initial infections in each household.
+
+        Args:
+            initial_seeding (str): a valid choice of initial seeding protocol.
+
+        Raises:
+            Exception: raised if the initial_seeding string is not recognized as a valid configuration.
+
+        Returns:
+            np.ndarray: the initial state of infections in each household in the population. Values correspond to constants.STATE enumeration values.
+        """
         initial_seeding = InitialSeedingConfig(initial_seeding)
 
         if initial_seeding == InitialSeedingConfig.seed_one_by_susceptibility:
@@ -163,17 +227,17 @@ class Population(NamedTuple):
 
         initial_state = np.expand_dims(initial_state, axis=2)
         return initial_state
-    
+
     def make_connectivity_matrix(self, adjmat):
         """Makes a matrix of *relative* probabilities with ith row jth column corresponding to the relative probability that ith individual is infected by the jth individual
 
         Args:
             adjmat (np.ndarray): an array of True and False where ij = True means that i could be infected by j. (IE: they live in the same household, both exist, but they're not the same people)
-        
+
         Returns:
             [np.ndarray] -- connectivity matrix of relative probabilities infection i <-- j
         """
-        # matrix of 
+        # matrix of
         connectivity_matrix = (self.sus @ self.inf) * adjmat
         return connectivity_matrix
 
@@ -192,13 +256,18 @@ class Population(NamedTuple):
         sus, inf = intervention_scheme.apply(population.sus, population.inf, initial_state)
         return cls(population.is_occupied, sus, inf)
 
-from utilities import ModelInputs
-from typing import OrderedDict
 class SimulationRegion(NamedTuple):
+    """A region in parameter space that describes combinations of parameter values to be simulated forwards in time.
+
+    Fields:
+        axes_by_name (OrderedDict): an ordered dictionary (in to-be-simulated order) that maps 'name of parameter' --> 'numpy vector of parameter values that are of interest.' for each parameter of interest.
+        parameter_class (utilities.ModelInputs): an object that can map a point in the region to the necessary values for simulation (consisting of the susceptibility distribution, the infectivity distribution, and the probability/time of infection).
+    """
     axes_by_name: OrderedDict
     parameter_class: ModelInputs
 
 class NpEncoder(json.JSONEncoder):
+    """A custom json encoder used to save numpy integers as python integers for better serialization."""
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
@@ -210,9 +279,14 @@ class Metadata(NamedTuple):
     population: dict
     parameters: type
 
-    def save(self, root):
-        #import pdb; pdb.set_trace()
-        with open(os.path.join(root, 'metadata.json'), 'w') as f:
+    def save(self, root, name='metadata'):
+        """Save this metatdata object as a json file at the root directory.
+
+        Args:
+            root (str): the path to the directory in which to save the metadata.
+            metadata (str, optional): the name of the json file. Defaults to 'metadata'.
+        """
+        with open(os.path.join(root, f'{name}.json'), 'w') as f:
             json.dump(self, f, cls=NpEncoder)
 
     @classmethod
@@ -225,6 +299,14 @@ class Metadata(NamedTuple):
         return metadata
 
     def check_compatibility(self, m2):
+        """Compare this Metadata object to another to see if the they are compatible (ie, represent an identical simulation approach so that results from different approaches aren't accidentally combined).
+
+        Args:
+            m2 (recipes.Metadata): the Metadata to test compatibility with.
+
+        Returns:
+            bool: True if compatible, False if not.
+        """
         for i, field in enumerate(self._fields):
             if field != 'population' and self[i] != m2[i]:
                 return False
@@ -265,6 +347,18 @@ class Results(NamedTuple):
         return cls(df, metadata)
 
     def combine(self, r2, decimal_places=3):
+        """Return the combined data about infections carried by this Results object and a second Results object — if they are compatible.
+
+        Args:
+            r2 (recipes.Results): another Results object to combine with.
+            decimal_places (int, optional): the decimal precision to use for the index to find shared values in the two indices. Defaults to 3.
+
+        Raises:
+            ValueError: raised if the two Results objects do not have compatible Metadata.
+
+        Returns:
+            recipes.Results: the combined results of the two Results objects.
+        """
         if not self.metadata.check_compatibility(r2.metadata):
             raise ValueError("Tried to combine two results objects with incompatible metadata.")
         # combine dfs: concat and then update intersecting components to be the sum of the two components
@@ -292,6 +386,15 @@ class Results(NamedTuple):
         return self.__class__(df3, self.metadata._replace(population=size_dict))
 
     def find_frequencies(self, minimum_size=20000, inplace=True):
+        """Find the frequencies (ratio of observed/total occurrences) for different numbers of infections at each point in the index. In other words, convert results from a cohort of households into probabilities of those occurences.
+
+        Args:
+            minimum_size (int, optional): a minimum # of households at each point in the index. Since we generally want frequencies to correspond to a probability calculated in reference to many households, this warns us if we have few households in our results. Defaults to 20000.
+            inplace (bool, optional): if True, add the calculated frequencies to the Results.df attribute as a new column. Defaults to True.
+
+        Returns:
+            pandas.Series: the frequency/probability of observing X infections in households of size Y.
+        """
         for _, minimum in self.metadata.population.items():
             if isinstance(minimum, tuple) or isinstance(minimum, list):
                 minimum, _ = minimum
@@ -383,9 +486,9 @@ class Results(NamedTuple):
         return self.check_sizes_on_axes(region.axes_by_key, desired_sizes)
 
     def check_sizes_on_axes(self, axes_by_key, desired_sizes):
-        '''Checks that every size household is present at all combination of parameter values over the specified axes.
+        """Checks that every size household is present at all combination of parameter values over the specified axes.
 
-        Returns a mapping of combinations of parameters values that are missing sizes ---> sizes that are missing at that combination.'''
+        Returns a mapping of combinations of parameters values that are missing sizes ---> sizes that are missing at that combination."""
         key_names = self.df.index.names[:3]
         missing = {}
         desired_sizes = set(desired_sizes)
@@ -451,12 +554,14 @@ class PopulationStructure:
         # Make population #
         ###################
 
+        # a population is a realization of this PopulationStructure. People are connected in the way described by the structure, but their relative traits are randomly decided for this specific population.
         pop = self.make_population(sus, inf)
 
         ################################
         # Process and verify arguments #
         ################################
 
+        # create an initial state based on the seeding protocol
         initial_state = pop.make_initial_state(initial_seeding)
         if intervention is not None:
             pop = pop.apply_intervention(intervention, initial_state)
@@ -486,6 +591,7 @@ class PopulationStructure:
             simulator = gillespie_simulation
         else:
             raise Exception('unimplemented forward simulation configuration')
+
         ############
         # Simulate #
         ############
