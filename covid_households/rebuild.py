@@ -35,12 +35,15 @@ gillespie_from_parts_dirs = [
 gillespie_completed_dirs = [
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-16-34',
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-17-25',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-15-28',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-20-43',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-26-15-00',
 ]
 
 import recipes
 # Load the results of many simulated trials
 # Rebuild if we  want to stitch together the parts again
-def rebuild(completed_dirs, from_parts_dirs, outpath, filename='results', check_region=None):
+def rebuild(completed_dirs, from_parts_dirs, outpath, filename='results', check_region=None, do_drop=False):
     r_objs = []
     for dir in from_parts_dirs:
         r = recipes.Results.load(dir, from_parts=True)
@@ -66,5 +69,9 @@ def rebuild(completed_dirs, from_parts_dirs, outpath, filename='results', check_
     missing = results.check_sizes_on_axes(check_region.axes_by_name, range(2,9))
     if missing:
         raise Exception('some sizes are missing from some points in parameter space. Check `missing` object')
-    else:
-        return results
+
+    if do_drop:
+        import utilities
+        # drop any rows where the parameter combinations result in beta that doesn't actually produce the right SAR
+        results = recipes.Results(results.df.loc[(~utilities.S80_P80_SAR_Inputs.bad_combinations_crib['bad beta'])], results.metadata)
+    return results
