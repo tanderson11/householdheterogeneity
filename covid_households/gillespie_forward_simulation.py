@@ -1,4 +1,5 @@
 from constants import STATE
+from settings import model_constants
 import torch
 from settings import device
 import numpy as np
@@ -61,8 +62,8 @@ def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_
     """
     # time until next aging event (someone leaving one compartment for the next due to time passing) in each household
     dtime_aging, dstate_aging_indices = state_lengths.min(axis=1)
-    # Necessary because state length sampler was built for discrete times with a timestep of 0.1 days
-    dtime_aging *= 0.1
+    # Necessary because state length sampler was built for discrete times with a timestep, so it spits out integers
+    dtime_aging *= model_constants.delta_t
     
     # find propensities (for each individual in each household to be infected)
     propensities = propensity_func(state, *propensity_args)
