@@ -6,8 +6,9 @@ import numpy as np
 
 def find_propensities(state, beta, probability_matrix):
     """
-    Determines the propensities towards each event (read: different person being infected) possible in each household.
-    
+    Determines the propensities towards each event (read: different person being infected)
+    possible in each household.
+
     Parameters
     ----------
     state : ndarray / tensor
@@ -15,7 +16,8 @@ def find_propensities(state, beta, probability_matrix):
     beta : float
         Constant rate of infection
     connectivity_matrix : ndarray / tensor
-        Matrix where A_ij is the relative probability that i would be infected by j if i is susceptible and j infectious
+        Matrix where A_ij is the relative probability that i would be infected by j
+        if i is susceptible and j infectious
     Returns
     -------
     propensities : ndarray
@@ -24,11 +26,11 @@ def find_propensities(state, beta, probability_matrix):
     time : float
         Time it took for the reaction to occur.
     """
-    
+
     # who is infectious and who is susceptible
     inf_mask = (state == STATE.infectious)
     sus_mask = (state == STATE.susceptible)
-    
+
     # the propensities are those probabilities ... if the states of the two individuals are correct
     propensities = probability_matrix * sus_mask * inf_mask.permute(0, 2, 1)
     propensities = propensities.sum(axis=2)
@@ -36,9 +38,13 @@ def find_propensities(state, beta, probability_matrix):
 
 def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_args):
     """
-    Draws the next event for each household in the population. Assesses whether the drawn event takes place or time advances so far that someone ages out of their state.
+    Draws the next event for each household in the population.
+
+    Assesses whether the drawn event takes place
+    or time advances so far that someone ages out of their state.
+
     Returns the change in state and the time advancement for each household.
-    
+
     Parameters
     ----------
     propensity_func : function
@@ -49,22 +55,24 @@ def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_
     t : ndarray
         The current time in each household
     state_lengths: ndarray
-        The time left for each individual in their current state (if transitory) or ~infinity if stationary
+        The time left for each individual in their state (if transitory) or ~infinity if stationary
     propensity_args : additional arguments
         Arguments to be passed to the propensity-finding-function
-        
+
     Returns
     -------
     dstate : ndarray
-        An array such that state + dstate properly represents the new state after one event in each household.
+        An array such that state + dstate = the new state after one event in each household.
     dtime : ndarray
         Time that passed in each household before its event.
     """
-    # time until next aging event (someone leaving one compartment for the next due to time passing) in each household
+    # time until next aging event
+    # (someone leaving one compartment for the next due to time passing) in each household
     dtime_aging, dstate_aging_indices = state_lengths.min(axis=1)
-    # Necessary because state length sampler was built for discrete times with a timestep, so it spits out integers
+    # Necessary because state length sampler was built for discrete times
+    # with a timestep, so it spits out integers, we need to bring these back to days
     dtime_aging *= model_constants.delta_t
-    
+
     # find propensities (for each individual in each household to be infected)
     propensities = propensity_func(state, *propensity_args)
 
@@ -136,11 +144,12 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
         (in the same house but not identical) and 0 otherwise
     **kwargs:
         Old versions supported some additional keyword arguments. These aren't used by us but are allowed for to promote compatibility.
-        
+   
     Returns
     -------
     is_infected : ndarray
-        An array of individuals valued True if that individual is infected and False if that individual is uninfected.
+        An array of individuals valued True if that individual is infected
+        and False if that individual is uninfected.
     """
     # move everything onto the torch device
     state = torch.from_numpy(numpy_initial_state).to(device)
@@ -148,7 +157,7 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
     sus = torch.from_numpy(numpy_sus).to(device)
     inf = torch.from_numpy(numpy_inf).to(device)
     t = torch.zeros((state.shape[0], 1), dtype=torch.float, device=device)
-    
+
     # a matrix whose ij-th entry is the relative probability that i would be infected by j if they are in the right states
     population_matrix = (sus @ inf) * connectivity_matrix
     population_matrix = beta * population_matrix
@@ -185,4 +194,3 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
 
     return_state = state.cpu().numpy()
     return return_state != STATE.susceptible
-

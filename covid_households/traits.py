@@ -4,6 +4,7 @@ import abc
 import scipy.stats
 
 class Trait(abc.ABC):
+    distribution_type = None
     def __call__(self, occupants):
         return self.draw_from_distribution(occupants)
 
@@ -111,10 +112,10 @@ class BiModalTrait(Trait):
         mean = self.probability_of_high_value * self.n_fold + (1 - self.probability_of_high_value) / self.n_fold
         assert np.abs(mean - 1.0) < 0.001, mean
 
-    def draw_from_distribution(self, occupants):
+    def draw_from_distribution(self, is_occupied):
         #values = np.full_like(occupants, 0., dtype=float)
-        is_high = np.random.random(occupants.shape) < self.probability_of_high_value
-        values = np.where(occupants & is_high, self.n_fold * occupants, occupants/self.n_fold)
+        is_high = np.random.random(is_occupied.shape) < self.probability_of_high_value
+        values = np.where(is_occupied & is_high, self.n_fold * is_occupied, is_occupied/self.n_fold)
 
         return values
 

@@ -23,7 +23,8 @@ class Intervention(abc.ABC):
         return f'Intervention named {self.name}'
 
 class ConstantFactor(Intervention):
-    def __init__(self, factor=1.0):
+    def __init__(self, name, factor=1.0):
+        super().__init__(name)
         self.factor = factor
 
     def apply(self, sus, inf, initial_state):

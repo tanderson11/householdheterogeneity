@@ -18,8 +18,9 @@ from gillespie_forward_simulation import gillespie_simulation
 from interventions import Intervention
 
 ### ENUMERATIONS
-### We use `enum.Enum`s (enumerations) to create settings/options that are constrained to a finite set of options.
-### This provides easy validation because if we have a string `setting_name` we can try SettingEnumeration(`setting_name`), which throws an error if that is an invalid setting.
+# We use `enum.Enum`s (enumerations) to create settings that are constrained to a finite set of options.
+# This provides easy validation because if we have a string `setting_name`
+# we can try SettingEnumeration(`setting_name`), which throws an error if that is an invalid setting.
 
 class StateLengthConfig(enum.Enum):
     lognormal = 'lognormal'

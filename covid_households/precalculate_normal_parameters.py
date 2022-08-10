@@ -2,10 +2,12 @@ from multiprocessing import Pool
 import tqdm
 import pandas as pd
 
-### Since every conversion of an $(s_{80}, p_{80}, \text{SAR})$ coordinate to a $(\text{variance}, \text{variance}, \beta)$ coordinate
-### requires at many numerical intergrations, it is slow. So we want to calculate these conversions just once and save the results.
+# Every conversion of an $(s_{80}, p_{80}, \text{SAR})$ to a $(\text{variance}, \text{variance}, \beta)$
+# requires many numerical intergrations, it is slow. So we want to calculate these conversions once
+# and save the result.
 
-### This file when executed as `__main__` calculates these conversions for every coordinate in a specified `region`.
+# This file when executed as `__main__` calculates these conversions for every coordinate
+# in a specified `region`.
 
 def to_normal_inputs(point):
     region, key1, key2, key3, v1, v2, v3 = point
@@ -24,10 +26,10 @@ def calculate_region_parameters(region):
     key3, axis3 = axis_data[2]
     
     def coordinate_stream(region, key1, key2, key3, axis1, axis2, axis3):
-        for v1 in axis1:
-            for v2 in axis2:
-                for v3 in axis3:
-                    yield (region, key1, key2, key3, v1, v2, v3)
+        for value1 in axis1:
+            for value2 in axis2:
+                for value3 in axis3:
+                    yield (region, key1, key2, key3, value1, value2, value3)
 
     with Pool(4) as p:
         total = len(axis1) * len(axis2) * len(axis3)

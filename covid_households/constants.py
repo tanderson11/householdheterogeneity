@@ -1,7 +1,6 @@
 # Constants used to refer to states
 import copy
 from dataclasses import dataclass
-import numpy as np
 import enum
 
 class STATE(enum.IntEnum):
@@ -26,11 +25,15 @@ class Constants:
             return copy.deepcopy(self.__dict__)
 
 ### Constants used for Anjalika's evictions paper
-LatentPeriod=4  #Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
-DurMildInf=7 #Duration of mild infections, days (Equal to infectious period)
+#Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
+LatentPeriod=4
+#Duration of mild infections, days (Equal to infectious period)
+DurMildInf=7
 
-std_LatentPeriod=4  #Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
-std_DurMildInf=4 #Duration of mild infections, days
+#Latent period, days (1 day less than incubation period, to include presymptomatic transmission)
+std_LatentPeriod=4
+#Duration of mild infections, days
+std_DurMildInf=4
 
 evictions_paper_constants = Constants(
       delta_t,

@@ -1,9 +1,12 @@
+from pathlib import Path
+import abc
+import scipy.optimize
+import scipy.integrate
+from scipy import stats
 import numpy as np
 from settings import STATE
 import traits
 import pandas as pd
-import abc
-from pathlib import Path
 
 ### Probability math
 def normalize_logl_as_probability(logl_df):
@@ -46,16 +49,12 @@ def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
     for k,g in regrouped:
         try:
             if axes.any():
-                g.plot.bar(ax=axes[i], ylabel="count", title="{0}Distribution of # of infections in household for households of size {1}".format(title_prefix,k))
+                g.plot.bar(ax=axes[i], ylabel="count", title=f"{title_prefix}Distribution of # of infections in household for households of size {k}")
         except:
-            g.plot.bar(figsize=(8,8), ylabel="count", title="{0}Distribution of # of infections in household for households of size {1}".format(title_prefix,k))
+            g.plot.bar(figsize=(8,8), ylabel="count", title=f"{title_prefix}Distribution of # of infections in household for households of size {k}")
         i += 1
 
 ### Parametrization utility functions
-import scipy.optimize
-import scipy.integrate
-import scipy.stats as stats
-
 def objective_function_crafter(p80):
     '''
     Takes in the desired p80
@@ -74,7 +73,7 @@ def objective_function_crafter(p80):
 
         integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
         #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
-        # ... in other words: 20% of spread from the bottom (1 - p80)%, 80% from the top p80%
+        # ... in other words: 20% of spread from the bottom (1 - p80)%, ---> 80% from the top (p80)%
         return np.abs(0.8 - 1.0 + integral)
     return objective_function
 
@@ -118,8 +117,10 @@ def lognormal_SAR_objective_function_crafter(SAR_target, generalized_period_rv):
     """A function that builds and returns an objective function with the signature objective_function(beta) --> residual of SAR and SAR_target.
 
     Args:
-        SAR_target (float): the average SAR in the population that is desired. In other words, the value such that objective_function(SAR_target) = 0.
-        generalized_period_rv (traits.LognormalTrait): The generalization of duration of infection that encompasses the variable susceptibility and infectivity of individuals.
+        SAR_target (float): the average SAR in the population that is desired.
+            In other words, the value such that objective_function(SAR_target) = 0.
+        generalized_period_rv (traits.LognormalTrait): The generalization of duration of infection
+            that encompasses the variable susceptibility and infectivity of individuals.
 
     Returns:
         SAR_objective_function (function): a function that returns the difference between SAR_target and measured SAR. SAR_objective_function(beta) = 0 if and only if beta (probability/time) produces a secondary attack rate = SAR_target on average.
