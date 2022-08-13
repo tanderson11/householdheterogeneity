@@ -99,11 +99,41 @@ class Model(NamedTuple):
 
         return df
 
+    def run_index(self, sizes, index, parameter_class, progress_path=None, progress_frequency=25, use_crib=False):
+        keys = index.names
+        metadata = Metadata(model_constants.as_dict(), self, sizes, list(keys))
+        if progress_path is not None:
+            metadata.save(progress_path)
+
+        population = None
+        results_list = None
+        for i,point in enumerate(index):
+            # treat the point as parameters
+            params = OrderedDict({key: value for key,value in zip(keys,point)})
+            # convert the point in the region to inputs that are recognizable for simulation
+            default_parameters = parameter_class(**params).to_normal_inputs(use_crib=use_crib)
+
+            # for the first point, we need to create the PopulationStructure object, which knows who lives in which household and therefore all the connections between individuals
+            # the random elements will all be calculated when the Population object is realized in the `run_trials` method below
+            if population is None:
+                expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
+                population = PopulationStructure(expanded_sizes, default_parameters['sus'], default_parameters['inf'])
+
+            point_results = self.run_point(sizes, population, keys, point, default_parameters)
+            results_list.append(point_results)
+            if i != 0 and i % progress_frequency == 0:
+                partial_df = pd.concat(results_list)
+                parquet_df = pa.Table.from_pandas(partial_df)
+                pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-through-index-{i}.parquet"))
+
+        df = pd.concat(results_list).reset_index().set_index(keys + ['size', 'infections'])
+        return Results(df, metadata)
+
     def run_grid(self, sizes, region, progress_path=None, use_crib=False):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
         Args:
-            sizes (dict): a mapping of household size --> # households of that size, which describes the population to simulate whose initial state is to be simulated forward in time.
+            sizes (dict): a mapping of household size --> # households of that size, which describes the population whose initial state is to be simulated forward in time.
             region (recipes.SimulationRegion): a convex 3D region in parameter space over which to simulate.
             progress_path (str, optional): the path to a directory in which to save incremental progress and final results. Defaults to None.
             use_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values --> necessary inputs for simulation to save time. Defaults to False.
@@ -129,36 +159,22 @@ class Model(NamedTuple):
             one_d_dfs = []
             for v2 in axis2:
                 for v3 in axis3:
-                    params = {}
+                    params = OrderedDict()
                     params[key1] = v1
                     params[key2] = v2
                     params[key3] = v3
+                    keys = list(params.keys())
+                    values = list(params.values())
                     # convert the point in the region to inputs that are recognizable for simulation
                     default_parameters = region.parameter_class(**params).to_normal_inputs(use_crib=use_crib)
-                    # extract the three desired quantities from the default parameters we just calculated
-                    sus_dist = default_parameters['sus']
-                    inf_dist = default_parameters['inf']
-                    beta = default_parameters['household_beta']
 
                     # for the first point, we need to create the PopulationStructure object, which knows who lives in which household and therefore all the connections between individuals
                     # the random elements will all be calculated when the Population object is realized in the `run_trials` method below
                     if population is None:
                         expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
-                        population = PopulationStructure(expanded_sizes, sus_dist, inf_dist)
+                        population = PopulationStructure(expanded_sizes, default_parameters['sus'], default_parameters['inf'])
 
-                    # simulate to find resultant infections at this point in parameter space
-                    point_results = self.run_trials(beta, population=population, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True)
-
-                    # add labels to the dataframe based on the parameters truly used to simulate
-                    trait_parameter_name, trait_parameter_value = sus_dist.as_column()
-                    point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
-                    trait_parameter_name, trait_parameter_value = inf_dist.as_column()
-                    point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
-                    point_results['beta'] = np.float(f"{beta:.3f}")
-                    # and add labels based on the parameters that are custom for this region
-                    point_results[key1] = np.float(f"{v1:.3f}")
-                    point_results[key2] = np.float(f"{v2:.3f}")
-                    point_results[key3] = np.float(f"{v3:.3f}")
+                    point_results = self.run_point(sizes, population, keys, values, default_parameters)
                     # we collect results for each 'line' in the 3D grid, then add those lines together to make planes, and then compile all the planes into a cube
                     one_d_dfs.append(point_results)
             two_d_df = pd.concat(one_d_dfs)
@@ -173,6 +189,28 @@ class Model(NamedTuple):
         # let the custom labels of the regions become indices into the DataFrame
         df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
         return Results(df, metadata)
+
+    def run_point(self, sizes, population, keys, values, default_parameters):
+        # extract the three desired quantities from the default parameters
+        sus_dist = default_parameters['sus']
+        inf_dist = default_parameters['inf']
+        beta = default_parameters['household_beta']
+        # simulate to find resultant infections at this point in parameter space
+        point_results = self.run_trials(
+            beta, population=population, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True
+        )
+
+        # add labels to the dataframe based on the parameters truly used to simulate
+        trait_parameter_name, trait_parameter_value = sus_dist.as_column()
+        point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
+        trait_parameter_name, trait_parameter_value = inf_dist.as_column()
+        point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
+        point_results['beta'] = np.float(f"{beta:.3f}")
+        # and add labels based on the parameters that are custom for this region
+        point_results[keys[0]] = np.float(f"{values[0]:.3f}")
+        point_results[keys[1]] = np.float(f"{values[1]:.3f}")
+        point_results[keys[2]] = np.float(f"{values[2]:.3f}")
+        return point_results
 
 class Population(NamedTuple):
     is_occupied: np.ndarray
