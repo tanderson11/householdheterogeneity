@@ -99,14 +99,14 @@ class Model(NamedTuple):
 
         return df
 
-    def run_index(self, sizes, index, parameter_class, progress_path=None, progress_frequency=25, use_crib=False):
+    def run_index(self, sizes, index, parameter_class, progress_path=None, progress_frequency=1500, use_crib=False):
         keys = index.names
         metadata = Metadata(model_constants.as_dict(), self, sizes, list(keys))
         if progress_path is not None:
             metadata.save(progress_path)
 
         population = None
-        results_list = None
+        results_list = []
         for i,point in enumerate(index):
             # treat the point as parameters
             params = OrderedDict({key: value for key,value in zip(keys,point)})
