@@ -385,15 +385,16 @@ class Results(NamedTuple):
 
         return cls(df, metadata)
 
-    def combine(self, r2, decimal_places=3):
+    def combine(self, r2, method='add', decimal_places=3):
         """Return the combined data about infections carried by this Results object and a second Results object — if they are compatible.
 
         Args:
             r2 (recipes.Results): another Results object to combine with.
+            method (str, optional): either 'add' to sum entries or 'left' or 'right' to keep only the values from that side of the combine. Defaults to 'add'.
             decimal_places (int, optional): the decimal precision to use for the index to find shared values in the two indices. Defaults to 3.
 
         Raises:
-            ValueError: raised if the two Results objects do not have compatible Metadata.
+            ValueError: raised if the two Results objects do not have compatible Metadata. Or if method argument is not recognized.
 
         Returns:
             recipes.Results: the combined results of the two Results objects.
@@ -405,8 +406,18 @@ class Results(NamedTuple):
         #print("Duplicates?", df3.index.duplicated().any())
         df3 = df3[~(df3.index.duplicated(keep='first'))]
         #print("Duplicates?", df3.index.duplicated().any())
-        intersection = (self.df["count"] + r2.df["count"]).dropna()
-        df3.loc[intersection.index, "count"] = intersection
+        if method == 'add':
+            intersection = (self.df["count"] + r2.df["count"]).dropna()
+        elif method == 'left':
+            intersection = self.df["count"]
+        elif method == 'right':
+            intersection = r2.df["count"]
+        else:
+            raise ValueError(f"method of {method} is not recognized by combine.")
+        try:
+            df3.loc[intersection.index, "count"] = intersection
+        except ValueError:
+            import pdb; pdb.set_trace()
 
         df3 = df3.rename(index=lambda val: round(val, decimal_places))
         df3 = df3.sort_index()
