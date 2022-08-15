@@ -57,6 +57,7 @@ def gamma_state_length_sampler(new_state, entrants_shape): #state is the constan
 
 from traits import LognormalTrait
 
+# using true scale (ie not scaled to an integer by dividing by delta_t)
 lognormal_DISTS = {
     STATE.infectious.value: LognormalTrait.from_natural_mean_variance(model_constants.infectious_period_duration_mean, model_constants.infectious_period_duration_std**2),
     STATE.exposed.value: LognormalTrait.from_natural_mean_variance(model_constants.latent_period_duration_mean, model_constants.latent_period_duration_std**2),

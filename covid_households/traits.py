@@ -145,7 +145,7 @@ class LognormalTrait(Trait):
 
     def as_dict(self):
         self_dict = super().as_dict()
-        self_dict.update({'mu': self.mu, 'variance': self.sigma})
+        self_dict.update({'mu': self.mu, 'sigma': self.sigma})
         return self_dict
 
     def as_column(self):
