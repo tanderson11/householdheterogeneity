@@ -79,7 +79,7 @@ def objective_function_crafter(p80):
 
 def least_squares_solve(p80):
     objective_function = objective_function_crafter(p80)
-    variance = scipy.optimize.least_squares(objective_function, np.array((1.0)), bounds=((1.0e-6), (np.inf)))
+    variance = scipy.optimize.least_squares(objective_function, np.array((1.0)), bounds=((1.0e-6), (1.0e5)))
     return variance
 
 def lognormal_p80_solve(p80):
@@ -146,7 +146,7 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     generalized_period_rv = lognormal_calculate_generalized_period(sus, inf)
 
     SAR_function = lognormal_SAR_objective_function_crafter(SAR, generalized_period_rv)
-    beta = scipy.optimize.least_squares(SAR_function, np.array((0.05)), bounds=((1.0e-6), (0.999999)))
+    beta = scipy.optimize.least_squares(SAR_function, np.array((0.05)), bounds=((1.0e-6), (1.0e5)))
     assert(beta.success is True)
     return beta.x[0]
 
@@ -196,7 +196,7 @@ class Lognormal_Variance_Variance_Beta_Inputs(ModelInputs):
         self.inf_variance = inf_variance
         self.household_beta = household_beta
 
-    def to_normal_inputs(self, use_crib=False):
+    def to_normal_inputs(self, use_beta_crib=False, use_trait_crib=False):
         return {
             'household_beta': self.household_beta,
             'sus': traits.LognormalTrait.from_natural_mean_variance(mean=1.0, variance=self.sus_varaince),
@@ -217,11 +217,11 @@ class S80_P80_SAR_Inputs(ModelInputs):
         self.p80 = p80
         self.SAR = SAR
 
-    def to_normal_inputs(self, use_crib=False):
+    def to_normal_inputs(self, use_beta_crib=False, use_trait_crib=True):
         if self.s80 == 0.8:
             sus_dist = traits.ConstantTrait()
         else:
-            if use_crib:
+            if use_trait_crib:
                 sus_dist = traits.LognormalTrait(*tuple(self.s80_crib.loc[(np.float(f"{self.s80:.3f}"))]))
             else:
                 sus_variance = lognormal_s80_solve(self.s80)
@@ -232,7 +232,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
         if self.p80 == 0.8:
             inf_dist = traits.ConstantTrait()
         else:
-            if use_crib:
+            if use_trait_crib:
                 inf_dist = traits.LognormalTrait(*tuple(self.p80_crib.loc[(np.float(f"{self.p80:.3f}"))]))
             else:
                 inf_variance = lognormal_p80_solve(self.p80)
@@ -240,7 +240,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
                 inf_variance = inf_variance.x[0]
                 inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
 
-        if use_crib:
+        if use_beta_crib:
             beta = float(self.beta_crib.loc[((np.float(f"{self.s80:.3f}")), (np.float(f"{self.p80:.3f}")), (np.float(f"{self.SAR:.3f}")))])
         else:
             beta = beta_from_sar_and_lognormal_traits(self.SAR, sus_dist, inf_dist)
@@ -250,6 +250,10 @@ class S80_P80_SAR_Inputs(ModelInputs):
             'sus': sus_dist,
             'inf': inf_dist,
         }
+
+    @classmethod
+    def wrapped_beta_from_point(cls, point):
+        return cls(*point).to_normal_inputs()['household_beta']
 
     def as_dict(self):
         return {
