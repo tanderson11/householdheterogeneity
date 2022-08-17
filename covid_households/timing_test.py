@@ -14,5 +14,5 @@ date_str = datetime.datetime.now().strftime("%m-%d-%H-%M")
 dir_name = f"experiment_outputs/experiment-{date_str}"
 os.makedirs(dir_name)
 x = recipes.Model()
-results = x.run_grid({4:100000}, region, dir_name, use_crib=True)
+results = x.run_grid({4:100000}, region, dir_name, use_beta_crib=True)
 results.save(dir_name, 'results')

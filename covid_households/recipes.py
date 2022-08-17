@@ -99,7 +99,7 @@ class Model(NamedTuple):
 
         return df
 
-    def run_index(self, sizes, index, parameter_class, progress_path=None, progress_frequency=1500, use_crib=False):
+    def run_index(self, sizes, index, parameter_class, progress_path=None, progress_frequency=1500, use_beta_crib=False):
         keys = index.names
         metadata = Metadata(model_constants.as_dict(), self, sizes, list(keys))
         if progress_path is not None:
@@ -111,7 +111,7 @@ class Model(NamedTuple):
             # treat the point as parameters
             params = OrderedDict({key: value for key,value in zip(keys,point)})
             # convert the point in the region to inputs that are recognizable for simulation
-            default_parameters = parameter_class(**params).to_normal_inputs(use_crib=use_crib)
+            default_parameters = parameter_class(**params).to_normal_inputs(use_beta_crib=use_beta_crib)
 
             # for the first point, we need to create the PopulationStructure object, which knows who lives in which household and therefore all the connections between individuals
             # the random elements will all be calculated when the Population object is realized in the `run_trials` method below
@@ -129,14 +129,14 @@ class Model(NamedTuple):
         df = pd.concat(results_list).reset_index().set_index(keys + ['size', 'infections'])
         return Results(df, metadata)
 
-    def run_grid(self, sizes, region, progress_path=None, use_crib=False):
+    def run_grid(self, sizes, region, progress_path=None, use_beta_crib=False):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
         Args:
             sizes (dict): a mapping of household size --> # households of that size, which describes the population whose initial state is to be simulated forward in time.
             region (recipes.SimulationRegion): a convex 3D region in parameter space over which to simulate.
             progress_path (str, optional): the path to a directory in which to save incremental progress and final results. Defaults to None.
-            use_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values --> necessary inputs for simulation to save time. Defaults to False.
+            use_beta_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values --> necessary inputs for simulation to save time. Defaults to False.
 
         Returns:
             recipes.Results: the results at each combination of parameters with attributes `df` (the table of infections for the households) and `metadata` (information about the settings used to execute simulation).
@@ -166,7 +166,7 @@ class Model(NamedTuple):
                     keys = list(params.keys())
                     values = list(params.values())
                     # convert the point in the region to inputs that are recognizable for simulation
-                    default_parameters = region.parameter_class(**params).to_normal_inputs(use_crib=use_crib)
+                    default_parameters = region.parameter_class(**params).to_normal_inputs(use_beta_crib=use_beta_crib)
 
                     # for the first point, we need to create the PopulationStructure object, which knows who lives in which household and therefore all the connections between individuals
                     # the random elements will all be calculated when the Population object is realized in the `run_trials` method below
@@ -414,10 +414,20 @@ class Results(NamedTuple):
             intersection = r2.df["count"]
         else:
             raise ValueError(f"method of {method} is not recognized by combine.")
-        try:
-            df3.loc[intersection.index, "count"] = intersection
-        except ValueError:
-            import pdb; pdb.set_trace()
+        
+        df3.loc[intersection.index, "count"] = intersection
+        # if we join on the right, we need to relabel in accordance with the parameters used on the right
+        if method=='right':
+            #import pdb; pdb.set_trace()
+            df3.loc[intersection.index, "beta"] = r2.df.loc[intersection.index, "beta"]
+            if 'inf_variance' in r2.df.columns:
+                df3.loc[intersection.index, "inf_variance"] = r2.df.loc[intersection.index, "inf_variance"]
+            if 'sus_variance' in r2.df.columns:
+                df3.loc[intersection.index, "sus_variance"] = r2.df.loc[intersection.index, "sus_variance"]
+            if 'inf_constant_value' in r2.df.columns:
+                df3.loc[intersection.index, "inf_constant_value"] = r2.df.loc[intersection.index, "inf_constant_value"]
+            if 'sus_constant_value' in r2.df.columns:
+                df3.loc[intersection.index, "sus_constant_value"] = r2.df.loc[intersection.index, "sus_constant_value"]
 
         df3 = df3.rename(index=lambda val: round(val, decimal_places))
         df3 = df3.sort_index()
