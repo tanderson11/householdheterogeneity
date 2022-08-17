@@ -75,9 +75,11 @@ def rebuild(completed_dirs, from_parts_dirs, outpath, overwrite_dirs=None, filen
             if overwrite_r is None:
                 overwrite_r = r
             else:
-                overwrite_r.combine(r)
+                overwrite_r = overwrite_r.combine(r)
+        #import pdb; pdb.set_trace()
         # if we want to overwite some values, we use method right to keep only the overwriting results
         cumulative_r = cumulative_r.combine(overwrite_r, method='right')
+    #import pdb; pdb.set_trace()
 
     cumulative_r.save(outpath, filename=filename)
     results = cumulative_r
