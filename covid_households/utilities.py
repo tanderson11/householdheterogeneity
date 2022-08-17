@@ -15,41 +15,11 @@ def normalize_logl_as_probability(logl_df):
 ### Graphing utility functions
 def simple_bar_chart(df, key=None, drop_level=None, **kwargs):
     print(df)
-    #import pdb; pdb.set_trace()
 
     unstacked = df.unstack(list(range(len(key))))
     print(unstacked)
     ax = unstacked.plot.bar(**kwargs)
     return ax
-
-def bar_chart_new(df, key=["model"], grouping=["size"], title_prefix="", **kwargs):
-    grouped = df.groupby(key+grouping)
-
-    # count the occcurences and apply a sort so the shape of the dataframe doesn't change contextually
-    counts = grouped.apply(lambda g: g.value_counts(subset="infections", normalize=True).sort_index())
-    # This technology breaks if not all # of infections in the range in fact exist in the data. TODO fix this
-
-    # for some reason a change in the dataframes mean that the counts were stacking the infections in this weird way that I don't understand. this fixes it
-    counted_unstacked = counts.T.unstack(fill_value=0.).unstack(level=list(range(len(key))))
-    # and this was the old way
-    #counted_unstacked = counts.unstack(level=list(range(len(key))))
-    #import pdb; pdb.set_trace()
-    ax = counted_unstacked.plot.bar(**kwargs)
-    return ax
-
-def make_bar_chart(df, color_by_column="model", axes=False, title_prefix=""):
-    grouped = df.groupby(["size", "infections"])
-    regrouped = grouped[color_by_column].value_counts().unstack().groupby("size")
-    #regrouped.plot.bar(figsize=(8,8), ylabel="count")
-
-    i = 0
-    for k,g in regrouped:
-        try:
-            if axes.any():
-                g.plot.bar(ax=axes[i], ylabel="count", title=f"{title_prefix}Distribution of # of infections in household for households of size {k}")
-        except:
-            g.plot.bar(figsize=(8,8), ylabel="count", title=f"{title_prefix}Distribution of # of infections in household for households of size {k}")
-        i += 1
 
 ### Parametrization utility functions
 def objective_function_crafter(p80):
