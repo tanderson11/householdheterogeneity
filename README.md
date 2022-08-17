@@ -12,6 +12,7 @@ Notebooks:
 - `MinimalForwardSimulation.ipynb`: a notebook that provides the minimal code necessary to run a forward simulation and an example of how to plot infections in households with different amounts of heterogeneity.
 - `ViolinsAndPowerCalc.ipynb`: a notebook for benchmarking the precision and bias of fits (ie: looking at the distribution of MLEs over many observations/simulations).
 - `EmpiricalFits.ipynb`: a notebook for calculating the MLE and confidence intervals from a fit to a particular empirical data set.
+- `MassForwardSimulation.ipynb`: a notebook used for simulating infections over a large region in parameter space.
 
 
 ### Getting started locally
