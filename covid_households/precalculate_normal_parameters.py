@@ -57,13 +57,13 @@ if __name__ == '__main__':
     p80_axis = np.linspace(0.02, 0.80, 40)
     sar_axis = np.linspace(0.01, 0.60, 60)
     axes_by_key = OrderedDict({'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis})
-    region = recipes.SimulationRegion(axes_by_key, utilities.S80_P80_SAR_Inputs)
+    region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
 
     known_good_s80_axis = np.linspace(0.36, 0.80, 23)
     known_good_p80_axis = np.linspace(0.36, 0.80, 23)
     known_good_SAR_axis = np.linspace(0.01, 0.60, 60)
     axes_by_key = OrderedDict({'s80':known_good_s80_axis, 'p80':known_good_p80_axis, 'SAR':known_good_SAR_axis})
-    known_good_region = recipes.SimulationRegion(axes_by_key, utilities.S80_P80_SAR_Inputs)
+    known_good_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
 
     parameters = calculate_region_parameters(region, crib_region=known_good_region)
 

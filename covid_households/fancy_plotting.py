@@ -10,6 +10,7 @@ import operator
 
 import likelihood
 import utilities
+import model_inputs
 import traits
 import recipes
 
@@ -161,7 +162,7 @@ class InteractiveFigure:
         hsar = hsar if hsar is not None else keys.get('SAR', None)
         if hsar is None: beta = keys['beta']
 
-        parameterization = utilities.parameterization_by_keys[frozenset(keys.keys())]
+        parameterization = model_inputs.parameterization_by_keys[frozenset(keys.keys())]
         params = parameterization(**keys)
 
         df = model.run_trials(**params.to_normal_inputs(), trials=trials, sizes=sizes, as_counts=True)

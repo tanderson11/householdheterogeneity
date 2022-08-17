@@ -1,3 +1,5 @@
+import model_inputs
+
 # new instantaneous probability:
 tweaked_dprob_from_parts_dirs = [
     # part 1
@@ -92,7 +94,6 @@ def rebuild(completed_dirs, from_parts_dirs, outpath, overwrite_dirs=None, filen
         raise Exception('some sizes are missing from some points in parameter space. Check `missing` object')
 
     if do_drop:
-        import utilities
         # drop any rows where the parameter combinations result in beta that doesn't actually produce the right SAR
-        results = recipes.Results(results.df.loc[(~utilities.S80_P80_SAR_Inputs.bad_combinations_crib['bad beta'])], results.metadata)
+        results = recipes.Results(results.df.loc[(~model_inputs.S80_P80_SAR_Inputs.bad_combinations_crib['bad beta'])], results.metadata)
     return results

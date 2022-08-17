@@ -8,7 +8,7 @@ import os
 import json
 from typing import OrderedDict
 
-from utilities import ModelInputs
+from model_inputs import ModelInputs
 from settings import model_constants
 from settings import STATE
 import state_lengths as state_length_module
