@@ -12,7 +12,7 @@ from model_inputs import ModelInputs
 from settings import model_constants
 from settings import STATE
 import state_lengths as state_length_module
-import traits as traits
+import traits
 from torch_forward_simulation import torch_forward_time
 from gillespie_forward_simulation import gillespie_simulation
 from interventions import Intervention
@@ -60,16 +60,27 @@ class Model(NamedTuple):
         """Simulate a group of households forward in time many times and collect the outcome of infections / household grouped by trial.
 
         Args:
-            household_beta (float, optional): the probability/time of an infection passing from infectious --> susceptible. Defaults to None.
-            trials (int, optional): how many differently seeded outbreaks to simulate for the same population. Defaults to 1.
-            population (recipes.Population, optional): a PopulationStructure object that specifies the sizes of households. Either population or sizes must be specified. Defaults to None.
-            sizes (dict, optional): a dictionary that describes the cohort of households by mapping household size --> # households of that size. Either population or sizes must be specified. Defaults to None.
-            sus (traits.Trait, optional): a Trait object that describes the distribution of relative susceptibility in the population. Defaults to traits.ConstantTrait().
-            inf (traits.Trait, optional): a Trait object that describes the distribution of relative infectivity in the population. Defaults to traits.ConstantTrait().
-            as_counts (bool, optional): if True, group the outcomes by household size. If False, return outcomes in each household separately. Defaults to True.
+            household_beta (float, optional): the probability/time of an infection passing
+                from infectious --> susceptible. Defaults to None.
+            trials (int, optional): how many differently seeded outbreaks to simulate
+                for the same population. Defaults to 1.
+            population (recipes.Population, optional): a PopulationStructure object
+                that specifies the sizes of households.
+                Either population or sizes must be specified. Defaults to None.
+            sizes (dict, optional): a dictionary that describes the cohort of households
+                by mapping household size --> # households of that size.
+                Either population or sizes must be specified. Defaults to None.
+            sus (traits.Trait, optional): a Trait object that describes the distribution of relative susceptibility
+                in the population. Defaults to traits.ConstantTrait().
+            inf (traits.Trait, optional): a Trait object that describes the distribution of relative infectivity
+                in the population. Defaults to traits.ConstantTrait().
+            as_counts (bool, optional): if True, group the outcomes by household size.
+                If False, return outcomes in each household separately. Defaults to True.
 
         Returns:
-            pandas.DataFrame: a table of outcome infections where 'infections' indicates how many infections where present at fixation (counting the index case) and 'trial' indicates which trial those infections occurred in. The shape of the data depends on the `use_counts` argument.
+            pandas.DataFrame: a table of outcome infections where 'infections' indicates how many infections where present
+                at fixation (counting the index case) and 'trial' indicates which trial those infections occurred in.
+                The shape of the data depends on the `use_counts` argument.
         """
         assert household_beta is not None
         if population is None:
@@ -133,13 +144,18 @@ class Model(NamedTuple):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
         Args:
-            sizes (dict): a mapping of household size --> # households of that size, which describes the population whose initial state is to be simulated forward in time.
+            sizes (dict): a mapping of household size --> # households of that size,
+                which describes the population whose initial state is to be simulated forward in time.
             region (recipes.SimulationRegion): a convex 3D region in parameter space over which to simulate.
-            progress_path (str, optional): the path to a directory in which to save incremental progress and final results. Defaults to None.
-            use_beta_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values --> necessary inputs for simulation to save time. Defaults to False.
+            progress_path (str, optional): the path to a directory in which to save incremental progress
+                and final results. Defaults to None.
+            use_beta_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values
+                --> necessary inputs for simulation to save time. Defaults to False.
 
         Returns:
-            recipes.Results: the results at each combination of parameters with attributes `df` (the table of infections for the households) and `metadata` (information about the settings used to execute simulation).
+            recipes.Results: the results at each combination of parameters
+                with attributes `df` (the table of infections for the households)
+                and `metadata` (information about the settings used to execute simulation).
         """
         axis_data = list(region.axes_by_name.items())
         # extract the names of each parameter and the range of each parameter
@@ -250,10 +266,11 @@ class Population(NamedTuple):
             initial_seeding (str): a valid choice of initial seeding protocol.
 
         Raises:
-            Exception: raised if the initial_seeding string is not recognized as a valid configuration.
+            Exception: if the initial_seeding string is not recognized as a valid configuration.
 
         Returns:
-            np.ndarray: the initial state of infections in each household in the population. Values correspond to constants.STATE enumeration values.
+            np.ndarray: the initial state of infections in each household in the population.
+                Values correspond to constants.STATE enumeration values.
         """
         initial_seeding = InitialSeedingConfig(initial_seeding)
 
@@ -268,15 +285,16 @@ class Population(NamedTuple):
         return initial_state
 
     def make_connectivity_matrix(self, adjmat):
-        """Makes a matrix of *relative* probabilities with ith row jth column corresponding to the relative probability that ith individual is infected by the jth individual
+        """Makes a matrix of *relative* probabilities with ith row jth column
+            corresponding to the relative probability that the ith individual is infected by the jth individual
 
         Args:
-            adjmat (np.ndarray): an array of True and False where ij = True means that i could be infected by j. (IE: they live in the same household, both exist, but they're not the same people)
+            adjmat (np.ndarray): an array of True and False where ij = True means that i could be infected by j.
+                (IE: they live in the same household, both exist, but they're not the same people)
 
         Returns:
             [np.ndarray] -- connectivity matrix of relative probabilities infection i <-- j
         """
-        # matrix of
         connectivity_matrix = (self.sus @ self.inf) * adjmat
         return connectivity_matrix
 
@@ -285,9 +303,12 @@ class Population(NamedTuple):
         """Applies an invention to a population given its initial state and returns a new population (new set of traits).
 
         Args:
-            population (Population): a realized population of individuals in households with susceptibilities (sus) and infectivies (inf).
-            intervention_scheme (Intervention): an intervention object that can `.apply` itself to traits given the initial state.
-            initial_state (np.ndarray): the initial state of the population at time t=0. Values correspond to `constants.STATE`
+            population (Population): a realized population of individuals in households
+                with susceptibilities (population.sus) and infectivies (population.inf).
+            intervention_scheme (Intervention): an intervention object that can `.apply`
+                itself to traits given the initial state.
+            initial_state (np.ndarray): the initial state of the population at time t=0.
+                Values correspond to `constants.STATE`
 
         Returns:
             Population: a population where the trait values of individual (might) have been modified by an intervention.
@@ -338,7 +359,8 @@ class Metadata(NamedTuple):
         return metadata
 
     def check_compatibility(self, m2):
-        """Compare this Metadata object to another to see if the they are compatible (ie, represent an identical simulation approach so that results from different approaches aren't accidentally combined).
+        """Compare this Metadata object to another to see if the they are compatible
+            (ie, represent an identical simulation approach so different approaches aren't accidentally combined).
 
         Args:
             m2 (recipes.Metadata): the Metadata to test compatibility with.
@@ -604,7 +626,8 @@ class PopulationStructure:
 
         # creates a real draw from the trait distributions to represent
         # one instance of the abstract structure
-        sus = np.expand_dims(susceptibility.draw_from_distribution(self.is_occupied), axis=2) # ideally we will get rid of expand dims at some point
+        # ideally we will get rid of expand dims at some point
+        sus = np.expand_dims(susceptibility.draw_from_distribution(self.is_occupied), axis=2)
         inf = np.transpose(np.expand_dims(infectivity.draw_from_distribution(self.is_occupied), axis=2), axes=(0,2,1))
 
         return Population(self.is_occupied, sus, inf)

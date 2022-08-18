@@ -1,7 +1,7 @@
 from constants import STATE
 from settings import model_constants
-import torch
 from settings import device
+import torch
 import numpy as np
 
 def find_propensities(state, beta, probability_matrix):
@@ -102,7 +102,7 @@ def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_
     dtime = torch.where(dtime_aging < dtime_gillespie, dtime_aging, dtime_gillespie)
     # create the vector such that state + dstate = new_state
     dstate = torch.zeros_like(state)
-    # take advantage of the fact that compartments are sequential
+    # take advantage of the fact that compartments are sequential to simply add 1 to the state
     # we would need to more fastidiously track which events took place if backtracking (ex. SIRS) were possible
     dstate[torch.arange(dstate.shape[0]), dstate_indices.transpose(0,1)] = 1
     
@@ -122,8 +122,9 @@ def vector_gillespie_step(propensity_func, state, t, state_lengths, *propensity_
 def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix, **kwargs):
     """
     Takes an initial state of infections in households forward in time to fixation.
-    Returns a matrix of households where True represents an infected individual and False an uninfected individaul.
-    
+    Returns a matrix of households where True represents an infected individual
+        and False an uninfected individaul.
+
     Parameters
     ----------
     numpy_initial_state : ndarray
@@ -143,8 +144,9 @@ def gillespie_simulation(numpy_initial_state, beta, state_length_sampler, numpy_
         Matrix with A_ij = 1 if individuals i and j are connected
         (in the same house but not identical) and 0 otherwise
     **kwargs:
-        Old versions supported some additional keyword arguments. These aren't used by us but are allowed for to promote compatibility.
-   
+        Old versions supported some additional keyword arguments.
+            We don't use these, but allow them for compatibility.
+
     Returns
     -------
     is_infected : ndarray

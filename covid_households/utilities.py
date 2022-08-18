@@ -4,6 +4,7 @@ from scipy import stats
 import numpy as np
 from settings import STATE
 import traits
+from model_inputs import S80_P80_SAR_Inputs
 
 ### Probability math
 def normalize_logl_as_probability(logl_df):
@@ -35,10 +36,11 @@ def objective_function_crafter(p80):
         rv = stats.lognorm(s=sigma, scale=np.exp(mu))
 
         # we want x80 with F(x80) = 1 - p80
-        x80_defining_function = lambda x: np.abs(1 - p80 - rv.cdf(x))
+        def x80_defining_function(x):
+            return np.abs(1 - p80 - rv.cdf(x))
         x80 = scipy.optimize.fsolve(x80_defining_function, 0.5)[0]
 
-        integral, abserror = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
+        integral, _ = scipy.integrate.quad(lambda x: rv.pdf(x) * x, 0, x80)
         #print(variance, x80, p80, rv.cdf(x80), np.abs(0.8 - 1.0 + integral))
         # ... in other words: 20% of spread from the bottom (1 - p80)%, ---> 80% from the top (p80)%
         return np.abs(0.8 - 1.0 + integral)
@@ -93,7 +95,7 @@ def lognormal_SAR_objective_function_crafter(SAR_target, generalized_period_rv):
         SAR_objective_function (function): a function that returns the difference between SAR_target and measured SAR. SAR_objective_function(beta) = 0 if and only if beta (probability/time) produces a secondary attack rate = SAR_target on average.
     """
     def SAR_objective_function(beta):
-        integral, abserror = scipy.integrate.quad(lambda x: generalized_period_rv.pdf(x) * np.exp(-1 * beta * x), 0, np.inf)
+        integral, _ = scipy.integrate.quad(lambda x: generalized_period_rv.pdf(x) * np.exp(-1 * beta * x), 0, np.inf)
         sar = 1 - integral
         return np.abs(SAR_target - sar)
     return SAR_objective_function
