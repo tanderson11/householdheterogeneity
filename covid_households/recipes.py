@@ -155,7 +155,7 @@ class Model(NamedTuple):
         Returns:
             recipes.Results: the results at each combination of parameters
                 with attributes `df` (the table of infections for the households)
-                and `metadata` (information about the settings used to execute simulation).
+                    and `metadata` (information about the settings used to execute simulation).
         """
         axis_data = list(region.axes_by_name.items())
         # extract the names of each parameter and the range of each parameter

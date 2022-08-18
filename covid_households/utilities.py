@@ -4,7 +4,6 @@ from scipy import stats
 import numpy as np
 from settings import STATE
 import traits
-from model_inputs import S80_P80_SAR_Inputs
 
 ### Probability math
 def normalize_logl_as_probability(logl_df):
@@ -119,28 +118,3 @@ def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     assert(beta.success is True)
     return beta.x[0]
 
-def residual_wrapper(point, skip_old=True):
-    if skip_old and (point in S80_P80_SAR_Inputs.bad_combinations_crib.index):
-        return S80_P80_SAR_Inputs.bad_combinations_crib.loc[point]['residuals']
-    return calculate_residual(point)
-
-def calculate_residual(point):
-    s80, p80, sar = point
-    s80 = float(f"{s80:.3f}")
-    p80 = float(f"{p80:.3f}")
-    sar = float(f"{sar:.3f}")
-    if s80 == 0.8:
-        sus_dist = traits.ConstantTrait()
-    else:
-        mu, sigma = S80_P80_SAR_Inputs.s80_crib.loc[s80]
-        sus_dist = traits.LognormalTrait(mu, sigma)
-    if p80 == 0.8:
-        inf_dist = traits.ConstantTrait()
-    else:
-        mu, sigma = S80_P80_SAR_Inputs.p80_crib.loc[p80]
-        inf_dist = traits.LognormalTrait(mu, sigma)
-
-    beta = S80_P80_SAR_Inputs.beta_crib.loc[s80, p80, sar]
-    generalized_rv = lognormal_calculate_generalized_period(sus_dist, inf_dist)
-    objective_function = lognormal_SAR_objective_function_crafter(sar, generalized_rv)
-    return objective_function(beta)
