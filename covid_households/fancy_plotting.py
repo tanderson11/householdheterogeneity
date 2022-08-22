@@ -14,8 +14,8 @@ import model_inputs
 import traits
 import recipes
 
+plt.rcParams['pdf.fonttype']=42
 EMPIRICAL_TRIAL_ID = -1
-
 pretty_names = {'sus_mass': 'sus mass', 'inf_mass': 'inf mass', 'hsar': 'hsar', 'SAR': 'SAR', 's80': 's80', 'p80': 'p80'}
 
 class SelectedPoint:
@@ -337,6 +337,7 @@ def subfigure_factory(plot_type, ax, interactive):
             prob_df = utilities.normalize_logl_as_probability(logl_df)
             max_prob = prob_df.max()
             print(f"Global probability maximum: {max_prob}")
+            print(logl_df.idxmax())
 
             # now we have to reduce the dimensions again to the ones that are appropriate for plotting
             dropped_parameters = interactive.unspoken_parameters
@@ -354,10 +355,14 @@ def subfigure_factory(plot_type, ax, interactive):
             # so that the 2D plot will capture the uncertainties caused by lack of clarity about the free parameter
             prob_df = utilities.normalize_logl_as_probability(logl_df)
             prob_df = prob_df.groupby(['trial'] + interactive.keys).sum()
-            prob_df = prob_df / prob_df.sum()
             prob_df = prob_df.loc[trial]
+
             max_prob = prob_df.max()
             print(f"Global probability maximum: {max_prob}")
+            print(logl_df.idxmax())
+            #import pdb; pdb.set_trace()
+            #if logl_df.idxmax()[3] < 0.02:
+            #    import pdb; pdb.set_trace()
 
             kwargs.update({'vmin':0.0, 'vmax':max_prob})
         elif '2D only' in plot_type:
