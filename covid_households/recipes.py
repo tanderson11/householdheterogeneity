@@ -588,6 +588,8 @@ class Results(NamedTuple):
                     if present_sizes != desired_sizes:
                         missing_sizes =  desired_sizes - set(present_sizes)
                         missing[(x,y,z)] = missing_sizes
+        if len(missing) != 0:
+            import pdb; pdb.set_trace()
         return missing
 
 class PopulationStructure:
