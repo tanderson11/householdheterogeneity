@@ -1,6 +1,6 @@
 import model_inputs
 
-# new instantaneous probability:
+# new instantaneous probability (manual integration done with dt timesteps)
 tweaked_dprob_from_parts_dirs = [
     # part 1
     '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-03-30-01-25',
@@ -27,7 +27,7 @@ tweaked_dprob_completed_dirs = [
     '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-23-07'
 ]
 
-# gillespie simulation dirs
+# gillespie simulation dirs (exact forward simulation)
 gillespie_from_parts_dirs = [
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-01-22-18',
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-13-46',
@@ -42,10 +42,23 @@ gillespie_completed_dirs = [
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-26-15-00',
 ]
 
+# applying beta corrections to above gillepsie simulations
 gillespie_overwrite_dirs = [
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-19-00',
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-20-38',
     '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-13-13-32'
+]
+
+# high sizes using gillespie simulation
+gillespie_high_size_dirs = [
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-25-16-21',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-26-17-35',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-27-22-36',
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-29-19-39',
+]
+
+gillespie_high_size_completed_dirs = [
+    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/completed/experiment-08-30-20-32',
 ]
 
 import recipes
@@ -91,9 +104,26 @@ def rebuild(completed_dirs, from_parts_dirs, outpath, overwrite_dirs=None, filen
 
     missing = results.check_sizes_on_axes(check_region.axes_by_name, check_sizes)
     if missing:
-        raise Exception('some sizes are missing from some points in parameter space. Check `missing` object')
+        raise MissingDataException(missing)
 
     if do_drop:
         # drop any rows where the parameter combinations result in beta that doesn't actually produce the right SAR
         results = recipes.Results(results.df.loc[(~model_inputs.S80_P80_SAR_Inputs.bad_combinations_crib['bad beta'])], results.metadata)
     return results
+
+class MissingDataException(Exception):
+    def __init__(self, missing) -> None:
+        self.missing = missing
+        super().__init__()
+
+import numpy as np
+s80_axis = np.linspace(0.02, 0.80, 40)
+p80_axis = np.linspace(0.02, 0.80, 40)
+sar_axis = np.linspace(0.01, 0.60, 60)
+axes_by_key = {'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis}
+big_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
+
+try:
+    high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes', check_region=big_region, check_sizes=range(9,14))
+except MissingDataException as e:
+    exception = e
