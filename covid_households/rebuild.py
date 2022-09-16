@@ -1,64 +1,67 @@
 import model_inputs
+import os
+
+stem = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 # new instantaneous probability (manual integration done with dt timesteps)
 tweaked_dprob_from_parts_dirs = [
     # part 1
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-03-30-01-25',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-03-31-01-57',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-01-02-25',
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-03-30-01-25'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-03-31-01-57'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-01-02-25'),
     # part 2
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-03-31-01-57',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-11-22-52',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-16-06',
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-03-31-01-57'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-11-22-52'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-16-06'),
 ]
 
 tweaked_dprob_completed_dirs = [
     # part 1
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-04-02-27',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-05-21-13',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-13-01-29',
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-04-02-27'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-05-21-13'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group1/experiment-04-13-01-29'),
     # part 2
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-01-02-25',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-02-00-50',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-12-47',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-15-52',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-17-36',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-23-06',
-    '/Users/thayer/covid_households/new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-23-07'
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-01-02-25'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-02-00-50'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-12-47'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-15-52'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-17-36'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-23-06'),
+    os.path.join(stem, 'new_parameters/s80-p80-SAR-sizes-2-8-tweaked-dprobability/group2/experiment-04-12-23-07')
 ]
 
 # gillespie simulation dirs (exact forward simulation)
 gillespie_from_parts_dirs = [
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-01-22-18',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-13-46',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-13-48',
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-01-22-18'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-13-46'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-13-48'),
 ]
 
 gillespie_completed_dirs = [
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-16-34',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-17-25',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-15-28',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-20-43',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-26-15-00',
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-16-34'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-17-25'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-15-28'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-20-43'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-26-15-00'),
 ]
 
 # applying beta corrections to above gillepsie simulations
 gillespie_overwrite_dirs = [
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-19-00',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-20-38',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-13-13-32'
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-19-00'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-20-38'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-13-13-32')
 ]
 
 # high sizes using gillespie simulation
 gillespie_high_size_dirs = [
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-25-16-21',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-26-17-35',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-27-22-36',
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-29-19-39',
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-25-16-21'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-26-17-35'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-27-22-36'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-29-19-39'),
 ]
 
 gillespie_high_size_completed_dirs = [
-    '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/sizes-9-12/completed/experiment-08-30-20-32',
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/completed/experiment-08-30-20-32'),
 ]
 
 import recipes
@@ -124,6 +127,6 @@ axes_by_key = {'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis}
 big_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
 
 try:
-    high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, '/Users/thayer/covid_households/new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes', check_region=big_region, check_sizes=range(9,14))
+    high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes'), check_region=big_region, check_sizes=range(9,14))
 except MissingDataException as e:
     exception = e
