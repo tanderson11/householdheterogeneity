@@ -1,0 +1,81 @@
+### R/sl4hm: Simulated Likelihood for modelling household epidemics
+
+
+[Yair Goldberg](https://yairgo.net.technion.ac.il/) and Rami Yaari
+
+[R/sl4hm](https://github.com/yairgoldy/sl4hm) is an [R](https:/www.r-project.org) package. This package implements simulations of epidemics within households of children and adults and calculates the likelihood of a set of transmission parameters given a dataset of the
+result of epidemics (number of infected children and adults) within households.
+
+#### Installation
+
+You can install it from its [GitHub repository](https://github.com/yairgoldy/sl4hm). You first need to install the [devtools](https://github.com/hadley/devtools) package.
+
+```r
+install.packages("devtools")
+```
+
+Then install R/sl4hm using the `install_github` function in the
+[devtools](https://github.com/hadley/devtools) package.
+
+```r
+library(devtools)
+install_github("yairgoldy/sl4hm")
+```
+### The data 
+
+Loading the household data used for the analysis and saving it to a csv file ca can be done as follows. 
+```{r}
+library(sl4hm)
+household_data
+write.csv(x = household_data,file = "household_data.csv")
+```
+
+The more detailed individualized-data level of the household data can be downloaded directly from this GitHub repository.
+
+#### Example use
+
+First create a dataset in which each row corresponds to a family and includes the number of adults and children and the index case.
+
+```{r}
+
+family_structure_data <- create_family_structure_data(n=1000)
+head(family_structure_data,n = 5)
+
+```
+
+Then simulate the epidemic dynamic within each household, given
+the transmission matrix for children and adults (beta) and a generation time distribution (P). The returned dataset includes the number of infected adults and children in each household.
+```{r}
+dat <- create_simulated_data(family_structure_data = family_structure_data,
+                             beta_cc = 0.1,
+                             beta_ca = 0.2,
+                             beta_ac = 0.2,
+                             beta_aa = 0.4,
+                             P=sl4hm::load_P())
+head(dat,n = 5)
+
+                           
+```
+Calculate the likelihood surface for this dataset. While the simulated data can
+be generated with any combination of beta values, the likelihood function assumes
+a unique structure of beta in which beta_ac=beta_aa*delta, beta_ca=beta_aa*gamma,
+and beta_cc=beta_aa*delta*gamma, where gamma and delta are non-negative coeficients
+measuring the susceptibility and infectivity of children compared to adults.
+The likelihood is calculated for a coarse grid. One can download a dictionary [from here](https://technionmail-my.sharepoint.com/:f:/g/personal/yairgo_technion_ac_il/EoMePBbpQkxLkju-mi51-ywB8pVeWgiEFY99IpHFtynjbw?e=dgVBUk) which enables calculating the likelihood on a finer grid. This dictionary holds the distribution of the number of infected for each family type and duration of epidemic. One can also create a dictionary using the function `family_dictionary`.
+```{r}
+lik <- calc_likelihood(dat)
+head(lik,5)
+require(ggplot2,quietly = T)
+
+ggplot(lik,aes(x=gamma_val,y=delta_val,z=nll))+
+  facet_wrap(~beta_aa,labeller="label_both", ncol=3)+
+  geom_contour_filled(binwidth=5)+
+  geom_contour(color = "black", size = 0.1,binwidth=5) +
+  xlab("Child/Adult susceptablity")+
+  ylab("Child/Adult infectivity")+
+ggtitle("Likelihood Surface")+
+ theme_bw()
+
+```
+
+Using the function `run_simulation` one can create multiple datasets and find the MLE for each dataset. This can be used for calculating bootstrap confidence intervals for the parameters.

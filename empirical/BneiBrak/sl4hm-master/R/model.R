@@ -1,0 +1,205 @@
+
+
+#' Generate a vector of the generation time distribution using the Gamma distribution
+#' @param mean_P the mean of the distribution
+#' @param sd_P the standard deviation of the distribution
+#' @return a vector of the generation time distribution
+#' @export
+#' @importFrom stats pgamma
+
+load_P <- function(mean_P=4.5, sd_P=2.5){
+  x <- 1:21
+  shape_P <- (mean_P/sd_P)^2
+  scale_P <- mean_P/shape_P
+  P <- stats::pgamma(x,shape=shape_P,scale=scale_P)-pgamma(x-1,shape=shape_P,scale=scale_P)
+  P <- P/sum(P)
+  return(P)
+}
+
+
+if(getRversion() >= "2.15.1")
+  utils::globalVariables(c("pos.adults", "pos.childs","first.is.adult",
+                           "adults","childs","day","delta_val","n","family_prob",
+                           "prob","gamma_val","delta_val","count","loglik","findex","beta_aa",
+                           "logprob","nll","size","sims","true_day"))
+
+
+
+#' Calculate the likelihod of a dataset for all parameter values in the dictionary
+#' @param dat dataset (see `create_simulated_data ` for its structure)
+#' @param dictionary_path path to the folder that contain the dictionaries. If null, a small dicionary will be used
+#' @return a tibble with the likelihood calculated for all parameter values in the dictionary
+#' @export
+#' @importFrom magrittr "%>%"
+#' @import tibble
+#' @importFrom dplyr mutate select group_by summarise ungroup arrange inner_join
+#' @seealso `create_simulated_data`
+calc_likelihood <- function(dat,dictionary_path = NULL){
+
+
+
+  dat <- dplyr::mutate(dat,pos.adults = ifelse(first.is.adult, pos.adults-1,pos.adults),
+                       pos.childs = ifelse(first.is.adult, pos.childs,pos.childs -1))
+
+  if( ! ("family_prob" %in% colnames(dat))){
+    dat <- dplyr::mutate(dat,family_prob = 1)
+  }
+
+  # split the data to dat1 with known index case and dat2 with probability on who is the index case
+  dat1 <- dplyr::filter(dat, family_prob == 1) %>%
+    dplyr::select(adults, childs,first.is.adult,pos.adults,pos.childs,day) %>%
+    dplyr::group_by(adults, childs,first.is.adult,pos.adults,pos.childs,day) %>%
+    dplyr::summarise(count  = dplyr::n()) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(adults, childs,first.is.adult,pos.adults,pos.childs)
+
+
+  dat2 <- dplyr::filter(dat, family_prob <1) %>%
+    dplyr::select(adults, childs,first.is.adult,pos.adults,pos.childs,day,family_prob,findex) %>%
+    dplyr::arrange(adults, childs,first.is.adult,pos.adults,pos.childs)
+
+
+
+
+  if(is.null(dictionary_path )){
+    res1 <- dplyr::inner_join(dicti,dat1,by= c("adults", "childs","first.is.adult","pos.adults","pos.childs","day")) %>%
+      dplyr::mutate(loglik =  logprob*count) %>%
+      dplyr::group_by(beta_aa,gamma_val,delta_val) %>%
+      dplyr::summarise(nll = -sum(loglik)) %>%
+      dplyr::ungroup()
+
+    res2 <- dplyr::inner_join(dicti,dat2,by= c("adults", "childs","first.is.adult","pos.adults","pos.childs","day")) %>%
+      dplyr::group_by(beta_aa,gamma_val,delta_val,findex) %>%
+      dplyr::summarise(loglik = -log( sum(family_prob*prob))) %>%
+      dplyr::summarise(nll = sum(loglik)) %>%
+      dplyr::ungroup()
+
+    results <- rbind(res1,res2) %>%
+      dplyr::group_by(beta_aa,gamma_val,delta_val) %>%
+      dplyr::summarize(nll = sum(nll)) %>%
+      dplyr::ungroup()
+  } else{
+
+
+
+    results <- NULL
+    dict_names <- list.files(path = dictionary_path)
+    for(i in 1:length(dict_names)){
+      dicti <- readRDS(paste0(dictionary_path,"/",dict_names[i]))
+      res1 <- dplyr::inner_join(dicti,dat1,by= c("adults", "childs","first.is.adult","pos.adults","pos.childs","day")) %>%
+        dplyr::mutate(loglik =  logprob*count) %>%
+        dplyr::group_by(beta_aa,gamma_val,delta_val) %>%
+        dplyr::summarise(nll = -sum(loglik)) %>%
+        dplyr::ungroup()
+      res2 <- dplyr::inner_join(dicti,dat2,by= c("adults", "childs","first.is.adult","pos.adults","pos.childs","day")) %>%
+        dplyr::group_by(beta_aa,gamma_val,delta_val,findex) %>%
+        dplyr::summarise(loglik = -log( sum(family_prob*prob))) %>%
+        dplyr::summarise(nll = sum(loglik)) %>%
+        dplyr::ungroup()
+
+      res <- rbind(res1,res2) %>%
+        dplyr::group_by(beta_aa,gamma_val,delta_val) %>%
+        dplyr::summarize(nll = sum(nll)) %>%
+        dplyr::ungroup()
+
+
+      results <- rbind(results,res)
+    }
+    # Delete dictionries to free memory
+    rm(dicti)
+    gc()
+
+  }
+
+  return(results)
+
+
+}
+
+#' Simulate the epidemic with in a household
+#' @param seed seed for the simulation
+#' @param adults number of adults in the household
+#' @param childs number of children in the household
+#' @param first.is.adult is indicator and is TRUE if the index case is adult and FALSE otherwise
+#' @param beta_cc proabilty that a child will infect a child
+#' @param beta_ac proabilty that a child will infect an adult
+#' @param beta_ca proabilty that an adult will infect a child
+#' @param beta_aa proabilty that an adult will infect an adult
+#' @param P a vector of generation time distribution (default is generated by load_P)
+#' @param T_max the length of the epidemic within the family
+#' @param ssn the number of households to simuluate
+#'
+#' @return a tibble with the epidemic development over time by day
+#' @export
+#' @import magrittr
+#' @importFrom cubelyr as.tbl_cube
+#' @importFrom tibble as_tibble
+#' @importFrom dplyr mutate select group_by summarise ungroup arrange inner_join
+#' @importFrom tidyr  spread  gather
+#' @seealso load_P
+
+simulate_household <- function(seed = -1,adults,childs,first.is.adult,
+                               beta_cc,beta_ca,beta_ac,beta_aa,P = NULL,T_max=45,ssn=1000) {
+  beta <- matrix(c(beta_cc,beta_ca,beta_ac,beta_aa),2,2,byrow =T)
+
+  if(is.null(P)){
+    P <- load_P()
+  }
+
+  if(seed >0){
+    set.seed(seed)
+  }
+
+  m <- 2
+  d <- length(P)
+
+  if(first.is.adult){
+    i0 <- c(0,1)
+  } else {
+    i0 <- c(1,0)
+  }
+  N <- c(childs,adults)
+  if(min(N-i0) <0) return(NULL)
+
+  inf <- array(0,dim=c(T_max+d,m,ssn))
+  sus <- array(0,dim=c(T_max+d,m,ssn))
+  inf[d,1:m,] <- i0
+  sus[d,1:m,] <- N-i0
+
+  for(t in (d+1):(T_max+d)) {
+    for(j in 1:m) {
+
+      # for j =1 , we check infection of child, beta_1,1 =beta1 is P(child infected given child infector)
+      #  beta_1,2 =beta2 is P(child infected given adult infector)
+      prob=sapply(1:ssn,function(r)
+        1-exp(-sum(sapply(1:m,function(k) beta[j,k]*sum(inf[(t-d):(t-1),k,r]*P[d:1])))))
+
+      prob <- pmin(1,pmax(0,prob,na.rm = T),na.rm = T)
+
+      inf[t,j,] <- stats::rbinom(ssn,size=sus[t-1,j,],prob=prob)
+      sus[t,j,] <- sus[t-1,j,]-inf[t,j,]
+    }
+  }
+  inf <- inf[(d+1):(T_max+d),,]
+
+  if(ssn == 1){
+    dimnames(inf) = list("day" = 1:T_max,"type" = c("pos.childs","pos.adults"))
+    inf <- tibble::as_tibble(inf) %>%
+      dplyr::mutate(day= 1:T_max,index = 1) %>%
+      dplyr::select(day,index,pos.adults,pos.childs) %>%
+      tidyr::gather(type,inf,-index,-day)
+  } else {
+    dimnames(inf) = list("day" = 1:T_max,"type" = c("pos.childs","pos.adults"), "index" = 1:ssn)
+    inf <- cubelyr::as.tbl_cube(inf) %>% tibble::as_tibble()
+  }
+  inf  <- inf %>%
+    dplyr::arrange(type,index,day) %>%
+    dplyr::group_by(type,index) %>%
+    dplyr::mutate(inf = cumsum(inf)) %>%
+    tidyr::spread(key = type,value = inf) %>%
+    dplyr::ungroup()
+
+  return (inf)
+}
+
+
