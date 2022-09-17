@@ -4,6 +4,9 @@ from settings import device
 import torch
 import numpy as np
 
+# The skeleton of this code was informed by these excellent course notes on the subject of Gillespie simulation:
+# http://be150.caltech.edu/2019/handouts/12_stochastic_simulation_all_code.html
+
 def find_propensities(state, beta, probability_matrix):
     """
     Determines the propensities towards each event (read: different person being infected)
