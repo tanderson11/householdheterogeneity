@@ -1,8 +1,11 @@
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import os
 
-to_munge = "ontario"
+stem = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+to_munge = "bneibrak"
 
 paths = {
 	"geneva":"empirical/geneva/empirical_df.parquet",
@@ -63,7 +66,7 @@ elif to_munge == "geneva":
 	empirical_df["trialnum"] = "empirical"
 
 elif to_munge == "bneibrak":
-	df = pd.read_csv("/Users/thayer/covid_households/empirical/BneiBrak/sl4hm-master/households_dat.csv")
+	df = pd.read_csv(os.path.join(stem, "empirical/BneiBrak/households_dat.csv"))
 	# building the columns (and forcing them to lists so the indices don't mess up the concat)
 	size_col = df.groupby("household").size().to_list()
 	infections_in_household = df.groupby("household").apply(lambda group: group.apply(lambda row: (row == "POS").any(), axis=1).value_counts()).reset_index()
@@ -77,7 +80,7 @@ elif to_munge == "bneibrak":
 	empirical_df["trialnum"] = "empirical"
 
 elif to_munge == "ontario":
-	df = pd.read_csv("/Users/thayer/covid_households/empirical/Ontario/sizes-2-7-ontario.csv")
+	df = pd.read_csv(os.path.join(stem, "empirical/Ontario/sizes-2-7-ontario.csv"))
 	chunks = []
 	for index, row in df.iterrows():
 		count = int(row['count'])
@@ -94,7 +97,7 @@ elif to_munge == "ontario":
 	empirical_df["trialnum"] = "empirical"
 
 	# building the columns (and forcing them to lists so the indices don't mess up the concat)
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 pq.write_table(pa.Table.from_pandas(empirical_df), path)
 
 
