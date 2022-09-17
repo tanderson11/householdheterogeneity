@@ -32,36 +32,36 @@ tweaked_dprob_completed_dirs = [
 
 # gillespie simulation dirs (exact forward simulation)
 gillespie_from_parts_dirs = [
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-01-22-18'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-13-46'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-13-48'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-2-5/experiment-07-01-22-18'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-2-5/experiment-07-02-13-46'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-6-8/experiment-07-02-13-48'),
 ]
 
 gillespie_completed_dirs = [
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-2-5/experiment-07-02-16-34'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-6-8/experiment-07-02-17-25'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-15-28'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-25-20-43'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/expanded_extremes/experiment-07-26-15-00'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-2-5/experiment-07-02-16-34'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-6-8/experiment-07-02-17-25'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/expanded_extremes/experiment-07-25-15-28'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/expanded_extremes/experiment-07-25-20-43'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/expanded_extremes/experiment-07-26-15-00'),
 ]
 
 # applying beta corrections to above gillepsie simulations
 gillespie_overwrite_dirs = [
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-19-00'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-12-20-38'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/corrections/experiment-08-13-13-32')
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/corrections/experiment-08-12-19-00'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/corrections/experiment-08-12-20-38'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/corrections/experiment-08-13-13-32')
 ]
 
 # high sizes using gillespie simulation
 gillespie_high_size_dirs = [
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-25-16-21'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-26-17-35'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-27-22-36'),
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/from_parts/experiment-08-29-19-39'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/from_parts/experiment-08-25-16-21'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/from_parts/experiment-08-26-17-35'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/from_parts/experiment-08-27-22-36'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/from_parts/experiment-08-29-19-39'),
 ]
 
 gillespie_high_size_completed_dirs = [
-    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/sizes-9-12/completed/experiment-08-30-20-32'),
+    os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/completed/experiment-08-30-20-32'),
 ]
 
 import recipes
@@ -126,7 +126,8 @@ sar_axis = np.linspace(0.01, 0.60, 60)
 axes_by_key = {'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis}
 big_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
 
-try:
-    high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes'), check_region=big_region, check_sizes=range(9,14))
-except MissingDataException as e:
-    exception = e
+if __name__ == '__main__':
+    try:
+        high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes'), check_region=big_region, check_sizes=range(9,14))
+    except MissingDataException as e:
+        exception = e
