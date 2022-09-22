@@ -2,11 +2,16 @@ import abc
 import numpy as np
 
 class Intervention():
+    # do we care about keeping track of infections stratified by if the intervention was applied?
+    track_colors = True
     def __init__(self, intervention_shape):
         self.intervention_shape = intervention_shape
     
     def apply(self, sus, inf):
         intervention_mask = self.where_intervene(sus, inf)
+        # keep this around, we need it outside the object to determine infections
+        # stratified by whether or not intervention was applied
+        self._intervention_mask = intervention_mask
         sus = np.where(
             intervention_mask,
             self.intervene_on_sus(sus),

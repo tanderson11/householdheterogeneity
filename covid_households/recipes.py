@@ -89,7 +89,6 @@ class Model(NamedTuple):
             population = PopulationStructure(expanded_sizes, sus, inf)
 
         df = population.simulate_population(household_beta, *self, sus=sus, inf=inf)
-
         # restore a notion of 'trials'
         # (we flattened the households into one large population for efficiency, now add the labels back to restructure)
         dfs = []
@@ -683,7 +682,18 @@ class PopulationStructure:
         num_infections = pd.Series(np.sum(infections, axis=1).squeeze())
         num_infections.name = "infections"
 
-        return pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
+        df = pd.concat([self.sizes_table, pd.Series(num_infections)], axis=1)
+
+        if intervention is not None and intervention.track_colors:
+            intervention_and_infection = np.where(
+                intervention._intervention_mask,
+                infections,
+                np.zeros_like(infections)
+            )
+            df['intervention and infection'] = np.sum(intervention_and_infection, axis=1).squeeze()
+            df['total interventions'] = np.sum(intervention._intervention_mask, axis=1).squeeze()
+
+        return df
 
 if __name__ == '__main__':
     x = Model()
