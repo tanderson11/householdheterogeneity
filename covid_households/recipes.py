@@ -298,8 +298,7 @@ class Population(NamedTuple):
         connectivity_matrix = (self.sus @ self.inf) * adjmat
         return connectivity_matrix
 
-    @classmethod
-    def apply_intervention(cls, intervention_scheme, population, initial_state):
+    def apply_intervention(self, intervention_scheme):
         """Applies an invention to a population given its initial state and returns a new population (new set of traits).
 
         Args:
@@ -307,14 +306,12 @@ class Population(NamedTuple):
                 with susceptibilities (population.sus) and infectivies (population.inf).
             intervention_scheme (Intervention): an intervention object that can `.apply`
                 itself to traits given the initial state.
-            initial_state (np.ndarray): the initial state of the population at time t=0.
-                Values correspond to `constants.STATE`
 
         Returns:
             Population: a population where the trait values of individual (might) have been modified by an intervention.
         """
-        sus, inf = intervention_scheme.apply(population.sus, population.inf, initial_state)
-        return cls(population.is_occupied, sus, inf)
+        sus, inf = intervention_scheme.apply(self.sus, self.inf)
+        return self.__class__(self.is_occupied, sus, inf)
 
 class SimulationRegion(NamedTuple):
     """A region in parameter space that describes combinations of parameter values to be simulated forwards in time.
@@ -642,14 +639,14 @@ class PopulationStructure:
         # a population is a realization of this PopulationStructure. People are connected in the way described by the structure, but their relative traits are randomly decided for this specific population.
         pop = self.make_population(sus, inf)
 
+        if intervention is not None:
+            pop = pop.apply_intervention(intervention)
         ################################
         # Process and verify arguments #
         ################################
 
         # create an initial state based on the seeding protocol
         initial_state = pop.make_initial_state(initial_seeding)
-        if intervention is not None:
-            pop = pop.apply_intervention(intervention, initial_state)
 
         if importation is None:
             importation_probability = 0. * pop.sus
