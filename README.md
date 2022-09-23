@@ -36,3 +36,15 @@ The provided notebooks are useful for engaging in specific tasks, but a lot of f
 - `traits.py`: this file implements the `Trait` class, which represents a quantity that varies between individuals in a population. The two traits of interest in our model are the susceptibility and infectivity of individuals. Various kinds of traits, such as `ConstantTrait`s, `GammaTrait`s, and `LognormalTrait`s are implemented as subclasses of the abstract base class. These `Trait` objects wrap around a `draw_from_distribution` method that draws samples from the underlying random variable. The `Trait` objects can be passed to various methods to specify the population distributions of traits.
 - `utilities.py`: there are common tasks that must be performed (1) before we simulate infections and (2) as we process the data from completed simulations. The file `utilities` groups together some helper functions and objects associated with these tasks.
 - `model_inputs.py`: the forward simulation technology assumes that parameters will be given as two `Trait` objects that wrap around random variables (for the susceptibility and infectivity) and a `beta` (a probability/time of infection passing from infectious individual to susceptible individual). But often times,  we want to specify a bespoke scheme of parameters and conduct many simulations for different values of these parameters. For example, in the research associated with this project, I specified the values `s80` (fraction of susceptibility among the bottom 80% of susceptible individuals), `p80` (fraction of expected infections caused by individuals from the bottom 80% of infectivity), and `SAR` (the household secondary attack rate given the distributions of susceptibility and infectivity in the population). This file implements the `ModelInputs` abstract base class, which is used for converting from a custom scheme to the ordinary scheme. Objects of this class are initialized with some data, representing a custom way of providing parameter values, and have a method, `to_normal_inputs` that produces a dictionary of ordinary inputs to the foward simulation tool based on the custom data held in the object. The `S80_P80_SAR_Inputs` class converts an `s80`, `p80`, and `SAR` into the expected inputs for `recipes`.
+
+### Figures
+
+| Figure  | Created by |
+| ------------- | ------------- |
+| Fig 1b: visual representation of `s80` and `p80`  | `notebooks/TraitFigures.ipynb`  |
+| Fig 2: effects of heterogeneity  | `notebooks/MinimalForwardSimulation.ipynb`  |
+| Fig 3 --- left: contours of likelihood | `covid_households/plot_testing.py` and `covid_households/fancy_plotting.py`|
+| Fig 3 --- right: violins of MLEs  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
+| Fig 4b and c: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
+| Table 1: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
+| Table 2: power to detect intervention  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
