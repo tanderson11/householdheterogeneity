@@ -48,3 +48,10 @@ The provided notebooks are useful for engaging in specific tasks, but a lot of f
 | Fig 4b and c: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
 | Table 1: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
 | Table 2: power to detect intervention  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
+
+### References
+
+1. The Gillespie exact simulation technique.
+
+- Original paper: Gillespie, D. T. Exact Stochastic Simulation of Coupled Chemical Reactions. The journal of physical chemistry 1977, 81 (25), 2340–2361.
+- Skeleton of Python code: Justin Bois's and Michael Elowitz's [course notes](http://be150.caltech.edu/2019/handouts/12_stochastic_simulation_all_code.html) shared under a [Creative Commons Attribution License CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
