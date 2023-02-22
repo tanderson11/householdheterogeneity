@@ -167,7 +167,7 @@ class InteractiveFigure:
 
         df = model.run_trials(**params.to_normal_inputs(), trials=trials, sizes=sizes, as_counts=True)
         for k,v in keys.items():
-            df[k] = np.float("{0:.2f}".format(v))
+            df[k] = float("{0:.2f}".format(v))
         #import pdb; pdb.set_trace()
         df = df.reset_index().set_index(list(keys.keys()) + ['size', 'infections'])
 

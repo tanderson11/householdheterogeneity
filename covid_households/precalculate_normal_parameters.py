@@ -72,7 +72,7 @@ if __name__ == '__main__':
     for v1 in s80_axis:
         for v2 in p80_axis:
             for v3 in sar_axis:
-                beta_rows.append([(np.float(f"{v1:.3f}")), (np.float(f"{v2:.3f}")), (np.float(f"{v3:.3f}")), parameters[i]['household_beta']])
+                beta_rows.append([(float(f"{v1:.3f}")), (float(f"{v2:.3f}")), (float(f"{v3:.3f}")), parameters[i]['household_beta']])
                 i += 1
     beta_frame = pd.DataFrame(beta_rows, columns=('s80','p80','SAR','beta')).set_index(['s80','p80','SAR'])
     beta_frame.to_csv('./precalculated_beta_frame.csv')

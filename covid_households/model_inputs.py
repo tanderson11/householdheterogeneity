@@ -52,7 +52,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
             sus_dist = traits.ConstantTrait()
         else:
             if use_trait_crib:
-                sus_dist = traits.LognormalTrait(*tuple(self.s80_crib.loc[(np.float(f"{self.s80:.3f}"))]))
+                sus_dist = traits.LognormalTrait(*tuple(self.s80_crib.loc[(float(f"{self.s80:.3f}"))]))
             else:
                 sus_variance = utilities.lognormal_s80_solve(self.s80)
                 assert(sus_variance.success is True)
@@ -63,7 +63,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
             inf_dist = traits.ConstantTrait()
         else:
             if use_trait_crib:
-                inf_dist = traits.LognormalTrait(*tuple(self.p80_crib.loc[(np.float(f"{self.p80:.3f}"))]))
+                inf_dist = traits.LognormalTrait(*tuple(self.p80_crib.loc[(float(f"{self.p80:.3f}"))]))
             else:
                 inf_variance = utilities.lognormal_p80_solve(self.p80)
                 assert(inf_variance.success is True)
@@ -71,7 +71,7 @@ class S80_P80_SAR_Inputs(ModelInputs):
                 inf_dist = traits.LognormalTrait.from_natural_mean_variance(1., inf_variance)
 
         if use_beta_crib:
-            beta = float(self.beta_crib.loc[((np.float(f"{self.s80:.3f}")), (np.float(f"{self.p80:.3f}")), (np.float(f"{self.SAR:.3f}")))])
+            beta = float(self.beta_crib.loc[((float(f"{self.s80:.3f}")), (float(f"{self.p80:.3f}")), (float(f"{self.SAR:.3f}")))])
         else:
             beta = utilities.beta_from_sar_and_lognormal_traits(self.SAR, sus_dist, inf_dist)
 

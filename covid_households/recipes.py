@@ -217,14 +217,14 @@ class Model(NamedTuple):
 
         # add labels to the dataframe based on the parameters truly used to simulate
         trait_parameter_name, trait_parameter_value = sus_dist.as_column()
-        point_results[f'sus_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
+        point_results[f'sus_{trait_parameter_name}'] = float(f"{trait_parameter_value:.3f}")
         trait_parameter_name, trait_parameter_value = inf_dist.as_column()
-        point_results[f'inf_{trait_parameter_name}'] = np.float(f"{trait_parameter_value:.3f}")
-        point_results['beta'] = np.float(f"{beta:.3f}")
+        point_results[f'inf_{trait_parameter_name}'] = float(f"{trait_parameter_value:.3f}")
+        point_results['beta'] = float(f"{beta:.3f}")
         # and add labels based on the parameters that are custom for this region
-        point_results[keys[0]] = np.float(f"{values[0]:.3f}")
-        point_results[keys[1]] = np.float(f"{values[1]:.3f}")
-        point_results[keys[2]] = np.float(f"{values[2]:.3f}")
+        point_results[keys[0]] = float(f"{values[0]:.3f}")
+        point_results[keys[1]] = float(f"{values[1]:.3f}")
+        point_results[keys[2]] = float(f"{values[2]:.3f}")
         return point_results
 
 class Population(NamedTuple):
