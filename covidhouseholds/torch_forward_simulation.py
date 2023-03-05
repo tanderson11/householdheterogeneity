@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-from settings import device
-from settings import model_constants
-from settings import STATE
+from covidhouseholds.settings import device
+from covidhouseholds.settings import model_constants
+from covidhouseholds.settings import STATE
 
 # numpy_initial_state, beta, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix
 def torch_forward_time(np_state, beta_household, state_length_sampler, numpy_sus, numpy_inf, numpy_connectivity_matrix, np_importation_probability=None, duration=None, secondary_infections=True):

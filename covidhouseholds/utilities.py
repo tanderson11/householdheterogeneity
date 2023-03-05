@@ -2,8 +2,8 @@ import scipy.optimize
 import scipy.integrate
 from scipy import stats
 import numpy as np
-from settings import STATE
-import traits
+from covidhouseholds.settings import STATE
+import covidhouseholds.traits as traits
 
 ### Probability math
 def normalize_logl_as_probability(logl_df):
@@ -99,7 +99,7 @@ def lognormal_SAR_objective_function_crafter(SAR_target, generalized_period_rv):
         return np.abs(SAR_target - sar)
     return SAR_objective_function
 
-from state_lengths import lognormal_DISTS
+from covidhouseholds.state_lengths import lognormal_DISTS
 def beta_from_sar_and_lognormal_traits(SAR, sus, inf):
     """Solves for the appropriate value of beta (probability/time of infection) given a target SAR and the distributions of susceptibility and infectivity.
 
