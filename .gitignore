@@ -5,9 +5,6 @@
 # VS code
 .vscode/
 
-# spreadsheets
-*.xlsx
-
 # Private git token
 git_token.py
 
@@ -26,7 +23,6 @@ final_push/
 empirical/
 slides/
 new_parameters/
-batched_figs/
 test/
 personal_notebooks/
 experiment_outputs/
