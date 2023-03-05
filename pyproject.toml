@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "covid_households"
+name = "covidhouseholds"
 version = "0.1.0"
 description = ""
 authors = ["Thayer Anderson"]

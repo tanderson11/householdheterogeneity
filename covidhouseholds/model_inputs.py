@@ -1,10 +1,9 @@
 import abc
 import pandas as pd
-import numpy as np
 from pathlib import Path
 
-import utilities
-import traits
+import covidhouseholds.utilities as utilities
+import covidhouseholds.traits as traits
 
 class ModelInputs(abc.ABC):
     @abc.abstractmethod

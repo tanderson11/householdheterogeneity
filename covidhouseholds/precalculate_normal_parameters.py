@@ -45,8 +45,8 @@ def calculate_region_parameters(region, crib_region=None):
     return parameter_values
 
 if __name__ == '__main__':
-    import recipes
-    import utilities
+    import covidhouseholds.recipes as recipes
+    import covidhouseholds.utilities as utilities
     import numpy as np
     from typing import OrderedDict
 

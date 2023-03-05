@@ -1,6 +1,6 @@
-from constants import STATE
-from settings import model_constants
-from settings import device
+from covidhouseholds.constants import STATE
+from covidhouseholds.settings import model_constants
+from covidhouseholds.settings import device
 import torch
 import numpy as np
 

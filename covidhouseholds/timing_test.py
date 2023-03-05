@@ -1,5 +1,5 @@
-import recipes
-import utilities
+import covidhouseholds.recipes as recipes
+import covidhouseholds.utilities as utilities
 import numpy as np
 import os
 s80_axis = np.linspace(0.2, 0.8, 6)
