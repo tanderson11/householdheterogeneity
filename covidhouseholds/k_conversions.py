@@ -1,35 +1,23 @@
-import fractions
 from scipy.stats import nbinom
 import scipy.integrate
 import scipy.optimize
 import numpy as np
+from traits import GammaTrait
 
-def nbinom_from_mean_and_k(mean, k):
-    p = mean / (mean + 1/k * (mean**2))
-    n = k
-    #print(n,p)
-    return nbinom(n,p)
+def gamma_dist_from_ph_and_dh_of_beta_binomial(ph, dh):
+    gamma_dist = GammaTrait(mean=ph, variance=ph*(1-ph)/(dh+1))
+    return gamma_dist
 
-def p80_from_nb_and_x80(rv, x80, use_floor=True):
-    if use_floor:
-        p80 = 1 - scipy.integrate.quad(lambda x: rv.pmf(np.floor(x)), 0, x80)[0]
-    else:
-        p80 = 1 - scipy.integrate.quad(lambda x: rv.pmf(x), 0, x80)[0]
-    return p80
-
-def transmission_fraction_above_x_cutoff(rv, x, use_floor=True):
-    r0 = rv.mean()
-    if use_floor:
-        fraction = 1 - scipy.integrate.quad(lambda x: rv.pmf((x)) * x, 0, x)[0] / r0
-    else:
-        fraction = 1 - scipy.integrate.quad(lambda x: rv.pmf(np.floor(x)) * np.floor(x), 0, x)[0] / r0
+def xp80_for_continuous_rv(rv):
+    def xp80_objective_function(x):
+        """A function that takes its minimum value 0 when x = x_p80.
+        
+        xp80 = the infectiousness that divides the top p80-th percent from the bottom 1-p80th percent"""
+        return np.abs(scipy.integrate.quad(lambda v: rv.pdf(v) * v, 0, x)[0] - 0.8)
     
-    return np.abs(fraction)
+    xp80 = scipy.optimize.least_squares(xp80_objective_function, np.array((1.0)), bounds=((1.0e-5), (1.0e5))).x
+    return xp80
 
-def find_p80_from_mean_and_dispersion(mean, dispersion, use_floor=True):
-    rv = nbinom_from_mean_and_k(mean, dispersion)
-    def transmission_objective_function(x):
-        return transmission_fraction_above_x_cutoff(rv, x, use_floor=use_floor) - 0.8
-    x80 = scipy.optimize.least_squares(transmission_objective_function, np.array((1.5)), bounds=((1.0), (1.0e5))).x
-    print(x80)
-    return p80_from_nb_and_x80(rv, x80, use_floor=use_floor)
+def p80_from_continuous_rv_and_xp80(rv, xp80):
+    p80 = 1 - scipy.integrate.quad(lambda x: rv.pdf(x), 0, xp80)[0]
+    return p80
