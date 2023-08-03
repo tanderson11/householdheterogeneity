@@ -2,7 +2,7 @@
 
 This repository is used to simulate the spread of infection in small subpopulations where the susceptibility and infectiousness of individuals may differ.
 
-Conact: Alison Hill [](alhill@jhmi.edu) and Thayer Anderson [](tanderson11@gmail.com).
+Conact: Alison Hill <alhill@jhmi.edu> and Thayer Anderson <tanderson11@gmail.com>.
 
 Paper: [Quantifying individual-level heterogeneity in infectiousness and susceptibility through household studies](https://www.sciencedirect.com/science/article/pii/S1755436523000464).
 
@@ -36,8 +36,8 @@ Notebooks:
 | ------------- | ------------- |
 | Fig 1b: visual representation of `s80` and `p80`  | `notebooks/TraitFigures.ipynb`  |
 | Fig 2: effects of heterogeneity  | `notebooks/MinimalForwardSimulation.ipynb`  |
-| Fig 3 --- left: contours of likelihood | `src/plot_testing.py` and `src/fancy_plotting.py`|
-| Fig 3 --- right: violins of MLEs  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
+| Fig 3 &mdash; left: contours of likelihood | `src/plot_testing.py` and `src/fancy_plotting.py`|
+| Fig 3 &mdash; right: violins of MLEs  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
 | Fig 4b and c: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
 | Table 1: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
 | Table 2: power to detect intervention  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
