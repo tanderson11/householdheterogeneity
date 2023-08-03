@@ -21,9 +21,9 @@ While it's recommended that you follow the steps above to run the notebooks in t
 
 In any case, to make a local version, take the following steps:
 
-1. Open Terminal and clone this module (`git clone https://github.com/tanderson11/covidhouseholds.git`).
+1. Open Terminal and clone this module (`git clone https://github.com/tanderson11/householdheterogeneity.git`).
 2. Install poetry (https://python-poetry.org/docs/#installation), and then run the command `poetry install` to install all the necessary dependencies for this package.
-3. From inside the `covidhouseholds/` directory, run the command `poetry run jupyter-lab` which will open the IPython server in your browser. From there, navigate to the notebook that interests you. (See Jupyter's documentation if you are new to using `IPython` notebooks: https://jupyter.readthedocs.io/en/latest/install.html)
+3. From inside the `src/` directory, run the command `poetry run jupyter-lab` which will open the IPython server in your browser. From there, navigate to the notebook that interests you. (See Jupyter's documentation if you are new to using `IPython` notebooks: https://jupyter.readthedocs.io/en/latest/install.html)
 
 ## The python package
 
@@ -43,7 +43,7 @@ The provided notebooks are useful for engaging in specific tasks, but a lot of f
 | ------------- | ------------- |
 | Fig 1b: visual representation of `s80` and `p80`  | `notebooks/TraitFigures.ipynb`  |
 | Fig 2: effects of heterogeneity  | `notebooks/MinimalForwardSimulation.ipynb`  |
-| Fig 3 --- left: contours of likelihood | `covidhouseholds/plot_testing.py` and `covidhouseholds/fancy_plotting.py`|
+| Fig 3 --- left: contours of likelihood | `src/plot_testing.py` and `src/fancy_plotting.py`|
 | Fig 3 --- right: violins of MLEs  | `notebooks/ViolinsAndPowerCalc.ipynb`  |
 | Fig 4b and c: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
 | Table 1: best fits for empirical data  | `notebooks/EmpiricalFits.ipynb`  |
