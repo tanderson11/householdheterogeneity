@@ -2,7 +2,7 @@
 
 This repository is used to simulate the spread of infection in small subpopulations where the susceptibility and infectiousness of individuals may differ.
 
-Conact: Alison Hill <alhill@jhmi.edu> and Thayer Anderson <tanderson11@gmail.com>.
+Contact: Alison Hill <alhill@jhmi.edu> and Thayer Anderson <tanderson11@gmail.com>.
 
 Paper: [Quantifying individual-level heterogeneity in infectiousness and susceptibility through household studies](https://www.sciencedirect.com/science/article/pii/S1755436523000464).
 
