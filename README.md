@@ -14,7 +14,7 @@ This project connects the problem of quantifying heterogeneity to the problem of
 
 1. To simulate the spread of infections within households (or other small, well-mixed populations) based on a flexibly specified model of transmission that can include heterogeneity.
 2. To estimate the secondary attack risk (SAR; a measure of household transmission) as well the amount of heterogeneity from household final size data using maximum likelihood estimation based on the results of forward simulation of the specified model.
-3. To analyze of household studies by estimating model parameters, measure confidence intervals, and create figures.
+3. To analyze of household studies by estimating model parameters, measuring confidence intervals, and creating figures.
 
 ## Getting started (with Colab)
 
