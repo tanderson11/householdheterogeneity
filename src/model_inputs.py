@@ -2,8 +2,8 @@ import abc
 import pandas as pd
 from pathlib import Path
 
-import covidhouseholds.utilities as utilities
-import covidhouseholds.traits as traits
+import src.utilities as utilities
+import src.traits as traits
 
 class ModelInputs(abc.ABC):
     @abc.abstractmethod

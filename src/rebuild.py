@@ -1,4 +1,4 @@
-import covidhouseholds.model_inputs as model_inputs
+import src.model_inputs as model_inputs
 import os
 
 stem = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -64,7 +64,7 @@ gillespie_high_size_completed_dirs = [
     os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/sizes-9-12/completed/experiment-08-30-20-32'),
 ]
 
-import covidhouseholds.recipes as recipes
+import src.recipes as recipes
 # Load the results of many simulated trials
 # Rebuild if we  want to stitch together the parts again
 def rebuild(completed_dirs, from_parts_dirs, outpath, overwrite_dirs=None, filename='results', check_region=None, check_sizes=range(2,9), do_drop=False):

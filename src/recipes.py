@@ -8,14 +8,14 @@ import os
 import json
 from typing import OrderedDict
 
-from covidhouseholds.model_inputs import ModelInputs
-from covidhouseholds.settings import model_constants
-from covidhouseholds.settings import STATE
-import covidhouseholds.state_lengths as state_length_module
-import covidhouseholds.traits as traits
-from covidhouseholds.torch_forward_simulation import torch_forward_time
-from covidhouseholds.gillespie_forward_simulation import gillespie_simulation
-from covidhouseholds.interventions import Intervention
+from src.model_inputs import ModelInputs
+from src.settings import model_constants
+from src.settings import STATE
+import src.state_lengths as state_length_module
+import src.traits as traits
+from src.torch_forward_simulation import torch_forward_time
+from src.gillespie_forward_simulation import gillespie_simulation
+from src.interventions import Intervention
 
 ### ENUMERATIONS
 # We use `enum.Enum`s (enumerations) to create settings that are constrained to a finite set of options.

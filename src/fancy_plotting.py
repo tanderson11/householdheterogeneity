@@ -8,11 +8,11 @@ import matplotlib.patches as patches
 import seaborn as sns
 import operator
 
-import covidhouseholds.likelihood as likelihood
-import covidhouseholds.utilities as utilities
-import covidhouseholds.model_inputs as model_inputs
-import covidhouseholds.traits as traits
-import covidhouseholds.recipes as recipes
+import src.likelihood as likelihood
+import src.utilities as utilities
+import src.model_inputs as model_inputs
+import src.traits as traits
+import src.recipes as recipes
 
 plt.rcParams['pdf.fonttype']=42
 EMPIRICAL_TRIAL_ID = -1

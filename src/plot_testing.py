@@ -1,6 +1,6 @@
 import fancy_plotting
 import numpy as np
-import covidhouseholds.recipes as recipes
+import src.recipes as recipes
 import os
 
 

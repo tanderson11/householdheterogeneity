@@ -52,7 +52,7 @@ def p80_from_rv(rv):
 
 if __name__ == '__main__':
     import unittest
-    import covidhouseholds.model_inputs as model_inputs
+    import src.model_inputs as model_inputs
     class TestAgainstOurLognormalCalculation(unittest.TestCase):
         def test(self):
             p80_range = np.linspace(0.02, 0.74, 37)

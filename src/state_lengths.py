@@ -1,6 +1,6 @@
-from covidhouseholds.settings import device
-from covidhouseholds.settings import model_constants
-from covidhouseholds.settings import STATE
+from src.settings import device
+from src.settings import model_constants
+from src.settings import STATE
 
 import numpy as np
 import torch
@@ -55,7 +55,7 @@ def gamma_state_length_sampler(new_state, entrants_shape): #state is the constan
 ### LOGNORMAL distribution
 #########
 
-from covidhouseholds.traits import LognormalTrait
+from src.traits import LognormalTrait
 
 # using true scale (ie not scaled to an integer by dividing by delta_t)
 lognormal_DISTS = {
