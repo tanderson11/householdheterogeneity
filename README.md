@@ -8,9 +8,9 @@ Paper: [Quantifying individual-level heterogeneity in infectiousness and suscept
 
 ## Project summary
 
-Heterogeneity between individuals governs the spread of many pathogens. "Superspreading" (heterogeneity in infectiousness) is a key feature of transmission dynamics for SARS, MERS, smallpox, Ebola, tuberculosis, HIV, and SARS-CoV-2. To quantify superspreading, researchers commonly turn to contact tracing studies, which may be prone to bias because larger chains of infection are more likely to observed than smaller chains of infection. We propose that superspreading (and other heterogeneities, such as differences in susceptibility) might be more easily quantified by analyzing routine household studies that are often conducted to measure the risk one infected household member poses to their household contacts. Households are themselves important settings where pathogens spread (and therefore important settings for the containment of a spreading pathogen), and heterogeneity influences household transmission and affects the interpretation of the risk between household members.
+Heterogeneity between individuals governs the spread of many pathogens. "Superspreading" (heterogeneity in infectiousness) is a key feature of transmission dynamics for SARS, MERS, smallpox, Ebola, tuberculosis, HIV, and SARS-CoV-2. To quantify superspreading, researchers commonly turn to contact tracing studies, which may be prone to bias because larger chains of infection are more likely to observed than smaller chains of infection. We propose that superspreading (and other heterogeneities, such as differences in susceptibility) might be more easily quantified by analyzing routine household studies that are conducted to measure the risk one infected household member poses to their household contacts. Households are themselves important settings where pathogens spread (and therefore important settings for the containment of a spreading pathogen), and heterogeneity influences household transmission and affects the interpretation of the risk between household members.
 
-This project connects the problem of quantifying heterogeneity to the problem of accurately understanding household transmission of a pathogen, and provides the means to solve these two problems jointly by a combined forward simulation + maximum likelihood estimation method. Our project has the following core aims:
+This project connects the problem of quantifying heterogeneity to the problem of accurately understanding household transmission of a pathogen, and provides the means to solve these two problems jointly by a combined forward simulation + maximum likelihood estimation method. Our project has the following core features:
 
 1. To simulate the spread of infections within households (or other small, well-mixed populations) based on a flexibly specified model of transmission that can include heterogeneity.
 2. To estimate the secondary attack risk (SAR; a measure of household transmission) as well the amount of heterogeneity from household final size data using maximum likelihood estimation based on the results of forward simulation of the specified model.
@@ -31,6 +31,8 @@ Notebooks:
 - `MassForwardSimulation.ipynb`: a notebook used for simulating infections over a large region in parameter space.
 
 ### Figures
+
+For a hint about what each notebook can accomplish, see the following table, which shows which notebook was used to create which figure in the [published paper](https://www.sciencedirect.com/science/article/pii/S1755436523000464#sec4) that accompanies that python package.
 
 | Figure  | Created by |
 | ------------- | ------------- |
