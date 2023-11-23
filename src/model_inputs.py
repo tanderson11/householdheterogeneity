@@ -39,7 +39,6 @@ class S80_P80_SAR_Inputs(ModelInputs):
     s80_crib  = pd.read_csv(Path(__file__).parent / "../data/s80_lookup.csv").set_index('s80')
     p80_crib  = pd.read_csv(Path(__file__).parent / "../data/p80_lookup.csv").set_index('p80')
     beta_crib = pd.read_csv(Path(__file__).parent / "../data/beta_lookup.csv").set_index(['s80', 'p80', 'SAR'])
-    bad_combinations_crib = pd.read_csv(Path(__file__).parent / "../data/problematic_parameter_combinations.csv").set_index(['s80', 'p80', 'SAR'])
 
     def __init__(self, s80, p80, SAR) -> None:
         self.s80 = s80
@@ -97,11 +96,6 @@ class S80_P80_SAR_Inputs(ModelInputs):
 
 parameterization_by_keys = {}
 parameterization_by_keys[frozenset(S80_P80_SAR_Inputs.key_names)] = S80_P80_SAR_Inputs
-
-def residual_wrapper(point, skip_old=True):
-    if skip_old and (point in S80_P80_SAR_Inputs.bad_combinations_crib.index):
-        return S80_P80_SAR_Inputs.bad_combinations_crib.loc[point]['residuals']
-    return calculate_residual(point)
 
 def calculate_residual(point):
     s80, p80, sar = point
