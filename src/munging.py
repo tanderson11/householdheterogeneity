@@ -21,7 +21,7 @@ if to_munge == "jing":
 
 
 	# Munging for Jing Guangzhou Oct 2020 retrospective
-	df = pd.read_excel("~/covidhouseholds/empirical/ShahReview/Jing Household secondary attack rate of COVID-19 and associated determinants in Guangzhou/Data/Data_For_Statistical_Analysis_New.xlsx")
+	df = pd.read_excel("~/householdheterogeneity/empirical/ShahReview/Jing Household secondary attack rate of COVID-19 and associated determinants in Guangzhou/Data/Data_For_Statistical_Analysis_New.xlsx")
 	# selecting down to households + close relatives
 	df = df[df["relation_with_primary_case"] != "non-household member"]
 	if only_household: # remove close relatives if we want only same address
