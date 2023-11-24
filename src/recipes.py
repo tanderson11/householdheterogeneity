@@ -139,6 +139,85 @@ class Model(NamedTuple):
         df = pd.concat(results_list).reset_index().set_index(keys + ['size', 'infections'])
         return Results(df, metadata)
 
+    def inner_grid_wrapper(self, args):
+        return self.inner_grid_function(*args)
+
+    def inner_grid_function(self, keys, axes, v1, sizes, population, region, use_beta_crib, progress_path):
+        key1, key2, key3 = keys
+        _, axis2, axis3  = axes
+        one_d_dfs = []
+        for v2 in axis2:
+            for v3 in axis3:
+                params = OrderedDict()
+                params[key1] = v1
+                params[key2] = v2
+                params[key3] = v3
+                keys = list(params.keys())
+                values = list(params.values())
+                # convert the point in the region to inputs that are recognizable for simulation
+                default_parameters = region.parameter_class(**params).to_normal_inputs(use_beta_crib=use_beta_crib)
+
+                # population is a PopulationStructure, the actual population will get rebuilt each time.
+                point_results = self.run_point(sizes, population, keys, values, default_parameters)
+                # we collect results for each 'line' in the 3D grid, then add those lines together to make planes, and then compile all the planes into a cube
+                one_d_dfs.append(point_results)
+        two_d_df = pd.concat(one_d_dfs)
+        # save progress incrementally for each plane
+        if progress_path is not None:
+            parquet_df = pa.Table.from_pandas(two_d_df)
+            pq.write_table(parquet_df, os.path.join(progress_path, f"pool_df-{key1}-{v1:.3f}.parquet"))
+        return two_d_df
+
+
+    def parallel_run_grid(self, sizes, region, progress_path=None, use_beta_crib=False, pool_size=1):
+        """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
+
+        Args:
+            sizes (dict): a mapping of household size --> # households of that size,
+                which describes the population whose initial state is to be simulated forward in time.
+            region (recipes.SimulationRegion): a convex 3D region in parameter space over which to simulate.
+            progress_path (str, optional): the path to a directory in which to save incremental progress
+                and final results. Defaults to None.
+            use_beta_crib (bool, optional): if True, use a precalculated mapping of s80,p80,SAR parameter values
+                --> necessary inputs for simulation to save time. Defaults to False.
+
+        Returns:
+            recipes.Results: the results at each combination of parameters
+                with attributes `df` (the table of infections for the households)
+                    and `metadata` (information about the settings used to execute simulation).
+        """
+        from multiprocessing import Pool
+        import tqdm
+
+        axis_data = list(region.axes_by_name.items())
+        # extract the names of each parameter and the range of each parameter
+        key1, axis1 = axis_data[0]
+        key2, axis2 = axis_data[1]
+        key3, axis3 = axis_data[2]
+
+        metadata = Metadata(model_constants.as_dict(), self, sizes, list(region.axes_by_name.keys()))
+        if progress_path is not None:
+            metadata.save(progress_path)
+
+        expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
+
+        params = OrderedDict()
+        params[key1] = axis1[0]
+        params[key2] = axis2[0]
+        params[key3] = axis3[0]
+        default_parameters = region.parameter_class(**params).to_normal_inputs(use_beta_crib=use_beta_crib)
+        population = PopulationStructure(expanded_sizes, default_parameters['sus'], default_parameters['inf'])
+
+        pool = Pool(pool_size)
+        points = [((key1,key2,key3), (axis1,axis2,axis3), v1, sizes, population, region, use_beta_crib, progress_path) for v1 in axis1]
+        # for each point in the region, simulate infections and hold onto the results
+        two_d_dfs = list(tqdm.tqdm(pool.map(self.inner_grid_wrapper, points), total=len(axis1)))
+        three_d_df = pd.concat(two_d_dfs)
+
+        # let the custom labels of the regions become indices into the DataFrame
+        df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
+        return Results(df, metadata)
+
     def run_grid(self, sizes, region, progress_path=None, use_beta_crib=False):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
