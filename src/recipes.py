@@ -142,7 +142,7 @@ class Model(NamedTuple):
     def inner_grid_wrapper(self, args):
         return self.inner_grid_function(*args)
 
-    def inner_grid_function(self, keys, axes, v1, sizes, population, region, use_beta_crib, progress_path):
+    def inner_grid_function(self, keys, axes, v1, sizes, population, region, use_beta_crib, progress_path, divide_by_contacts):
         key1, key2, key3 = keys
         _, axis2, axis3  = axes
         one_d_dfs = []
@@ -152,13 +152,14 @@ class Model(NamedTuple):
                 params[key1] = v1
                 params[key2] = v2
                 params[key3] = v3
+
                 keys = list(params.keys())
                 values = list(params.values())
                 # convert the point in the region to inputs that are recognizable for simulation
                 default_parameters = region.parameter_class(**params).to_normal_inputs(use_beta_crib=use_beta_crib)
 
                 # population is a PopulationStructure, the actual population will get rebuilt each time.
-                point_results = self.run_point(sizes, population, keys, values, default_parameters)
+                point_results = self.run_point(sizes, population, keys, values, default_parameters, divide_by_contacts)
                 # we collect results for each 'line' in the 3D grid, then add those lines together to make planes, and then compile all the planes into a cube
                 one_d_dfs.append(point_results)
         two_d_df = pd.concat(one_d_dfs)
@@ -169,7 +170,7 @@ class Model(NamedTuple):
         return two_d_df
 
 
-    def parallel_run_grid(self, sizes, region, progress_path=None, use_beta_crib=False, pool_size=1):
+    def parallel_run_grid(self, sizes, region, progress_path=None, use_beta_crib=False, pool_size=1, divide_by_contacts=False):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
         Args:
@@ -209,7 +210,7 @@ class Model(NamedTuple):
         population = PopulationStructure(expanded_sizes, default_parameters['sus'], default_parameters['inf'])
 
         pool = Pool(pool_size)
-        points = [((key1,key2,key3), (axis1,axis2,axis3), v1, sizes, population, region, use_beta_crib, progress_path) for v1 in axis1]
+        points = [((key1,key2,key3), (axis1,axis2,axis3), v1, sizes, population, region, use_beta_crib, progress_path, divide_by_contacts) for v1 in axis1]
         # for each point in the region, simulate infections and hold onto the results
         two_d_dfs = list(tqdm.tqdm(pool.map(self.inner_grid_wrapper, points), total=len(axis1)))
         three_d_df = pd.concat(two_d_dfs)
@@ -218,7 +219,7 @@ class Model(NamedTuple):
         df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
         return Results(df, metadata)
 
-    def run_grid(self, sizes, region, progress_path=None, use_beta_crib=False):
+    def run_grid(self, sizes, region, progress_path=None, use_beta_crib=False, divide_by_contacts=False):
         """Simulate a cohort of households forward in time for every combination or parameter values in the specified region using the configuration of this Model object.
 
         Args:
@@ -268,7 +269,7 @@ class Model(NamedTuple):
                         expanded_sizes = {size:count*1 for size,count in sizes.items()} # Trials are implemented in a 'flat' way for more efficient numpy calculations
                         population = PopulationStructure(expanded_sizes, default_parameters['sus'], default_parameters['inf'])
 
-                    point_results = self.run_point(sizes, population, keys, values, default_parameters)
+                    point_results = self.run_point(sizes, population, keys, values, default_parameters, divide_by_contacts=divide_by_contacts)
                     # we collect results for each 'line' in the 3D grid, then add those lines together to make planes, and then compile all the planes into a cube
                     one_d_dfs.append(point_results)
             two_d_df = pd.concat(one_d_dfs)
@@ -284,11 +285,17 @@ class Model(NamedTuple):
         df = three_d_df.reset_index().set_index(metadata.parameters + ['size', 'infections'])
         return Results(df, metadata)
 
-    def run_point(self, sizes, population, keys, values, default_parameters):
+    def run_point(self, sizes, population, keys, values, default_parameters, divide_by_contacts=False):
         # extract the three desired quantities from the default parameters
         sus_dist = default_parameters['sus']
         inf_dist = default_parameters['inf']
         beta = default_parameters['household_beta']
+
+        if divide_by_contacts:
+            assert(len(sizes.keys()) == 1), "Can only divide by # of contacts if 1 unique size is present in population"
+            n_contacts = list(sizes.keys())[0] - 1
+            beta = beta/((n_contacts)**divide_by_contacts)
+
         # simulate to find resultant infections at this point in parameter space
         point_results = self.run_trials(
             beta, population=population, sizes=sizes, sus=sus_dist, inf=inf_dist, as_counts=True

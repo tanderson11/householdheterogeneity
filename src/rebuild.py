@@ -3,6 +3,20 @@ import os
 
 stem = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
+# for epidemics
+for_epidemics_parts_dirs = [
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/parts/experiment-11-23-14-40'),
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/parts/experiment-11-23-19-01'),
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/parts/experiment-11-23-23-35'),
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/parts/experiment-11-24-01-22'),
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/parts/experiment-11-24-11-55'),
+]
+
+for_epidemics_complete_dirs = [
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/complete/experiment-11-23-21-58'),
+    os.path.join(stem, '/Users/thayer/develop/covid_households/epidemics/complete/experiment-11-24-15-49'), 
+]
+
 # new instantaneous probability (manual integration done with dt timesteps)
 tweaked_dprob_from_parts_dirs = [
     # part 1
@@ -126,8 +140,14 @@ sar_axis = np.linspace(0.01, 0.60, 60)
 axes_by_key = {'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis}
 big_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
 
+sar_axis = np.linspace(0.01, 0.60, 119)
+axes_by_key = {'s80':s80_axis, 'p80':p80_axis, 'SAR':sar_axis}
+high_grain_sar_region = recipes.SimulationRegion(axes_by_key, model_inputs.S80_P80_SAR_Inputs)
+
 if __name__ == '__main__':
     try:
-        high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes'), check_region=big_region, check_sizes=range(9,14))
+        #high_size_results = rebuild(gillespie_high_size_completed_dirs, gillespie_high_size_dirs, os.path.join(stem, 'new_parameters/gillespie-s80-p80-SAR/beta_corrections/high_sizes'), check_region=big_region, check_sizes=range(9,14))
+        rebuild(for_epidemics_complete_dirs, for_epidemics_parts_dirs, stem, check_region=high_grain_sar_region, check_sizes=range(2,5))
     except MissingDataException as e:
         exception = e
+        print(e)
