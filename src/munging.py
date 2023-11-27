@@ -5,12 +5,13 @@ import os
 
 stem = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-to_munge = "bneibrak"
+to_munge = "lyngse"
 
 paths = {
 	"geneva":"empirical/geneva/empirical_df.parquet",
 	"bneibrak":"empirical/BneiBrak/empirical_df.parquet",
 	"ontario":"empirical/Ontario/empirical_df.parquet",
+	"lyngse":"empirical/lyngse/empirical_df.parquet",
 }
 
 path = paths[to_munge]
@@ -96,8 +97,24 @@ elif to_munge == "ontario":
 	empirical_df["model"] = "baseline model"
 	empirical_df["trialnum"] = "empirical"
 
-	# building the columns (and forcing them to lists so the indices don't mess up the concat)
-#import pdb; pdb.set_trace()
+elif to_munge == "lyngse":
+	df = pd.read_csv(os.path.join(stem, "empirical/lyngse/results.csv"))
+	chunks = []
+	for index, row in df.iterrows():
+		count = int(row['count'])
+		sizes = [row['household size'] for _ in range(count)]
+		infections = [row['infections'] for _ in range(count)]
+		chunk = pd.DataFrame({'size':sizes, 'infections':infections})
+		chunks.append(chunk)
+		#import pdb; pdb.set_trace()
+	empirical_df = pd.concat(chunks)
+	empirical_df["inf_var"] = 0
+	empirical_df["sus_var"] = 0
+	empirical_df["hsar"] = 0
+	empirical_df["model"] = "baseline model"
+	empirical_df["trialnum"] = "empirical"
+
+import pdb; pdb.set_trace()
 pq.write_table(pa.Table.from_pandas(empirical_df), path)
 
 
