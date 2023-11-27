@@ -41,6 +41,7 @@ pat.txt
 
 # experiments folder
 experiments/
+epidemics/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
